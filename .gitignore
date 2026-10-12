@@ -6,4 +6,6 @@
 node_modules*
 /config/
 /dist/
+/data/
+.env
 tmp/

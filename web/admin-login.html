@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Admin sign in · OSC Web Mixer</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/admin.css">
+    <link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon">
+  </head>
+  <body class="admin-login">
+    <main class="card login-card">
+      <div class="admin-brand"><img src="/images/logo.svg" alt="Glow"><span>Ears Mixer</span></div>
+      <h1>Admin sign in</h1>
+      <p class="muted">Enter the admin password to access the dashboard.</p>
+      <form id="adminLoginForm" class="password-fields">
+        <label class="password-field">Password
+          <input id="adminLoginPassword" type="password" autocomplete="current-password" maxlength="256" required autofocus>
+        </label>
+        <button id="adminLoginSubmit" type="submit">Sign in</button>
+      </form>
+      <p id="adminLoginMessage" class="error" role="alert"></p>
+      <a href="/">Back to mixer</a>
+    </main>
+    <script src="/admin-login.js"></script>
+  </body>
+</html>

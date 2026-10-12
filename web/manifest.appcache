@@ -1,9 +1,14 @@
 CACHE MANIFEST
-# VERSION 50
+# VERSION 68
 
-mixer.min.css
-mixer.min.js
 index.html
+mixer.js
+templates.js
+identity.js
+icons.js
+icons.css
+vendor/lucide.svg
+vendor/Sortable.min.js
 
 NETWORK:
 *

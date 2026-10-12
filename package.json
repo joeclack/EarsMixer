@@ -11,6 +11,7 @@
     },
     "scripts": {
         "start": "node index.js",
+        "dev": "node tools/dev.cjs",
         "test": "node --test \"test/**/*.test.js\"",
         "mock-desk": "node tools/mock-desk.js",
         "build:js": "esbuild web/mixer.js --minify --outfile=web/mixer.min.js",
@@ -37,6 +38,7 @@
         "express": "^4.22.1",
         "ora": "^5.4.1",
         "osc": "github:castles/osc.js",
+        "qrcode": "^1.5.4",
         "ws": "8.21.3"
     },
     "pkg": {

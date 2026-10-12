@@ -1,531 +1,442 @@
 "use strict";
 
-(() => {
+const channelsDiv = document.getElementById("channels");
+const auxSelect = document.getElementById("aux");
+const favourites = document.getElementById("favourites");
+const editLayoutButton = document.getElementById("editLayout");
+const layoutHint = document.getElementById("layoutHint");
+const emptyChannels = document.getElementById("emptyChannels");
+let ws = null;
+let reconnectTimer = null;
+let connectionTimer = null;
+let queryTimer = null;
+let queryGeneration = 0;
+let editingLayout = false;
+let channelSorter = null;
+let mixerConfigReady = false;
+let defaultChannelOrder = [];
+const channelElements = new Map();
+const pendingWrites = new Map();
+const mixerStatus = document.getElementById("mixerStatus");
+const snapshotName = document.getElementById("snapshot");
+const WRITE_INTERVAL_MS = 35;
 
-const channelsDiv = document.getElementById('channels'),
-auxSelect = document.getElementById('aux'),
-panCheckbox = document.getElementById("panning"),
-auxiliaries = document.getElementById("auxiliaries"),
-snapshot = document.getElementById("snapshot");
+const enterFullscreenButton = document.getElementById("enterFullscreen");
+const exitFullscreenButton = document.getElementById("exitFullscreen");
 
-let ws = null,
-timeout = null,
-channelInputs = null,
-panInputs = null;
-
-/**
- * Calculate the db value from the provided slider value.
- * @param {number} value - the value to calculate from.
- * - Should be between 0 and 1.
- * - Will return a value between -150 and 10
- */
-function sliderToDb(value)
-{
-	const val = ((Math.log(value * 100) / Math.log(100)) * 100) - 90;
-	if(val === -Infinity)
-	{
-		return -150;
-	}
-	return val;
+function setFullscreenMode(active) {
+  document.body.classList.toggle("fullscreen-mode", active);
+  exitFullscreenButton.hidden = !active;
+  if (active) exitFullscreenButton.focus();
+  else enterFullscreenButton.focus();
 }
 
-/**
- * Calculate the value a slider should be from the provided db value.
- * This is the reverse of the formula in sliderToDb
- * @param {number} db - The db to calculate from
- * - between -90 and +10
- */
-function dbToSlider(db)
-{
-	return Math.pow(100, (db + 90) / 100) / 100;
-}
-
-/**
- * callback for when a channel volume or pan changes
- * @param {!Event} e - the channel volume/pan change event
- */
-function sliderChange(e)
-{
-	let sliderValue = parseFloat(this.value);
-
-	this.parentNode.style.setProperty('--value', (sliderValue * 100) + "%");
-
-	if(!ws)
-	{
-		return;
-	}
-
-	let parameter = "level";
-
-	if(this.classList.contains("volumeInput"))
-	{
-		sliderValue = sliderToDb(sliderValue);
-	}
-
-	if(this.classList.contains("panInput"))
-	{
-		parameter = "pan";
-	}
-
-	sendOSC("/Input_Channels/" + this.dataset.channel + "/Aux_Send/" + auxSelect.options[auxSelect.selectedIndex].dataset.channel + "/send_" + parameter, [sliderValue]);
-}
-
-function sendOSC(address, args = [])
-{
-	if(ws.readyState != WebSocket.OPEN)
-	{
-		return;
-	}
-	ws.send(JSON.stringify({
-		"address": address,
-		"args": args
-	}));
-}
-
-/**
- * Request current AUX values from server
- */
-function requestValues()
-{
-	for(let i=1; i<=[...document.getElementsByClassName("volumeInput")].length; i++)
-	{
-		sendOSC("/Input_Channels/" + i + "/Aux_Send/" + auxSelect.options[auxSelect.selectedIndex].value + "/send_level/?");
-		sendOSC("/Input_Channels/" + i + "/Aux_Send/" + auxSelect.options[auxSelect.selectedIndex].value + "/send_pan/?");
-	}
-}
-
-/**
- * Callback for when socket receives a message
- * @param {MessageEvent} e - the message socket event
- */
-function onMessage(e)
-{
-	let json;
-	try
-	{
-		json = JSON.parse(e.data);
-	}
-	catch(err)
-	{
-		return;
-	}
-
-	//console.log(json);
-
-	//Setup AUX and channels
-	if(json.config)
-	{
-		snapshot.innerText = json.config.snapshot;
-		buildAux(json.config.aux);
-		buildChannels(json.config.channels);
-		auxSelect.dispatchEvent(new Event("change"));
-		return;
-	}
-
-	if(json.address == "/SnapshotName")
-	{
-		snapshot.innerText = json.args[0];
-	}
-
-	//update level
-	let sendLevel = json.address.match(/^\/Input_Channels\/([0-9]+)\/Aux_Send\/([0-9]+)\/send_level$/);
-	if(sendLevel !== null)
-	{
-
-		if(sendLevel[2] == auxSelect.options[auxSelect.selectedIndex].dataset.channel)
-		{
-			//-90 to +10
-			let slider = channelInputs[sendLevel[1] - 1];
-			slider.value = dbToSlider(parseFloat(json.args[0]));
-			slider.parentNode.style.setProperty('--value', (slider.value * 100) + "%");
-		}
-	}
-
-	//update pan
-	let sendPan = json.address.match(/^\/Input_Channels\/([0-9]+)\/Aux_Send\/([0-9]+)\/send_pan$/);
-	if(sendPan !== null)
-	{
-		//0 to +1
-		if(sendPan[2] == auxSelect.options[auxSelect.selectedIndex].dataset.channel)
-		{
-			let slider = panInputs[sendPan[1] - 1];
-			slider.value = json.args[0];
-			slider.parentNode.style.setProperty('--value', (slider.value * 100) + "%");
-		}
-	}
-
-	//update channel names
-	let channelNameMatch = json.address.match(/^\/Input_Channels\/([0-9]+)\/Channel_Input\/name$/);
-	if(channelNameMatch !== null)
-	{
-		for(let slider of document.querySelectorAll('input[data-channel="' + channelNameMatch[1] + '"]'))
-		{
-			slider.previousElementSibling.textContent = json.args[0];
-		}
-	}
-
-	//update Aux names
-	let auxNameMatch = json.address.match(/^\/Aux_Outputs\/([0-9]+)\/Buss_Trim\/name$/);
-	if(auxNameMatch !== null)
-	{
-		//update the select
-		for(let option of auxSelect.options)
-		{
-			if(option.value == auxNameMatch[1])
-			{
-				option.textContent = json.args[0];
-
-				//make sure the aux span is correct
-				auxSelect.previousElementSibling.textContent = auxSelect.getElementsByTagName("option")[auxSelect.selectedIndex].text;
-			}
-		}
-
-		//update the buttons
-		for(let button of auxiliaries.getElementsByTagName("button"))
-		{
-			if(button.value == auxNameMatch[1])
-			{
-				button.lastChild.nodeValue = json.args[0];
-				return; //no need to update sliders if a button was changed
-			}
-		}
-	}
-
-}
-
-/**
- * Convert Hexadecimal colour to R, G, B
- * @param {string} hex - colour to convert
- * @returns string - converted colour
- */
-function formatColour(hex)
-{
-	var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-	return result ? [parseInt(result[1], 16),parseInt(result[2], 16),parseInt(result[3], 16)].join(",") : null;
-}
-
-/**
- * Populate AUX Select Box
- * @param {Array<Object>} options - An array of AUXs to add to the select box
- */
-function buildAux(options)
-{
-	if(!options)
-	{
-    	return;
-	}
-
-	auxiliaries.innerHTML = "";
-	auxSelect.innerHTML = "";
-
-	for(let option of options)
-	{
-		if(!option.enabled)
-		{
-			if(localStorage.getItem("aux") == option.channel)
-			{
-				localStorage.removeItem("aux");
-			}
-			continue;
-		}
-
-		let iconsrc = option.icon ? option.icon : "";
-
-		let colour = formatColour(option.colour);
-
-		let opt = document.createElement("option");
-		opt.value = option.channel;
-		opt.dataset.channel = option.channel;
-		opt.dataset.colour = colour;
-		opt.dataset.stereo = option.stereo;
-		opt.dataset.icon = iconsrc;
-		opt.textContent = option.label;
-		auxSelect.appendChild(opt);
-
-		let button = document.createElement("button");
-		button.value = option.channel;
-		button.style.setProperty('--tint', colour);
-
-		let icon = document.createElement("img");
-		icon.src = iconsrc;
-		icon.width = 30;
-		icon.height = 30;
-		button.appendChild(icon);
-
-		let buttonText = document.createTextNode(option.label);
-		button.appendChild(buttonText);
-
-
-
-		auxiliaries.appendChild(button);
-	}
-
-	if(localStorage.getItem("aux"))
-	{
-		auxSelect.value = localStorage.getItem("aux");
-	}
-	else
-	{
-		document.body.classList.add("auxPicker");
-	}
-}
-
-/**
- * open the auxiliaries picker when tapped
- * @param {!Event} e - the mouse event
- */
-function auxMouseDown(e)
-{
-	e.preventDefault();
-	e.stopImmediatePropagation();
-	document.body.classList.add("auxPicker");
-}
-auxSelect.addEventListener("mousedown", auxMouseDown);
-
-/**
- * Select the Aux when a button is tapped
- * @param {!Event} e - the mouse event
- */
-function auxPickerClick(e)
-{
-	if(e.target.nodeName == "BUTTON")
-	{
-		auxSelect.value = e.target.value;
-		auxSelect.dispatchEvent(new Event("change"));
-
-		document.body.classList.remove("auxPicker");
-	}
-}
-auxiliaries.addEventListener("click", auxPickerClick);
-
-//Detect double tap events for touch devices
-let tapedTwice = false;
-function tapSlider(e)
-{
-	if(!tapedTwice)
-	{
-		tapedTwice = true;
-		setTimeout( function() { tapedTwice = false; }, 300 );
-		return false;
-	}
-	resetSlider(e);
-}
-
-/**
- * Reset a channel to its default value.
- - Pan sliders will be set to 0.5
- - Volume sliders will be set to 0
- * @param {Event} e - The Tap or Click Event
- */
-function resetSlider(e)
-{
-	if(e.target.classList.contains("volumeInput"))
-	{
-		e.target.value = 0;
-	}
-
-	if(e.target.classList.contains("panInput"))
-	{
-		e.target.value = 0.5;
-	}
-
-	e.target.dispatchEvent(new Event("input"));
-}
-
-/**
- * Build channels html and add to the page
- * @param {!Array<Object>} channels - the channels to build
- */
-function buildChannels(channels)
-{
-	channelsDiv.innerHTML = "";
-
-	for(let channel of channels)
-	{
-		if(channel.title != "")
-		{
-			let heading = document.createElement("h2");
-			heading.style.order = channel.order;
-			heading.textContent = channel.title;
-			channelsDiv.appendChild(heading);
-		}
-
-		let wrap = document.createElement("div");
-		if(!channel.enabled)
-		{
-			wrap.className = "disabled";
-		}
-		wrap.style.order = channel.order;
-
-		for(let type of ["volume", "pan"])
-		{
-			let label = document.createElement("label");
-			label.className = type;
-
-			if(channel.icon != "")
-			{
-				let icon = document.createElement("img");
-				icon.src = channel.icon;
-				icon.width = 22;
-				icon.height = 22;
-				icon.className = "icon";
-				label.appendChild(icon);
-			}
-
-			let name = document.createElement("span");
-			name.textContent = channel.label;
-			label.appendChild(name);
-
-			let input = document.createElement("input");
-			input.type = "range";
-			input.dataset.channel = channel.channel;
-			input.className = type == "volume" ? "volumeInput" : "panInput";
-			input.step = "0.001";
-			input.min = "0";
-			input.max = "1";
-			input.value = type == "volume" ? "0" : "0.5";
-			label.appendChild(input);
-
-			wrap.appendChild(label);
-		}
-
-		channelsDiv.appendChild(wrap);
-	}
-
-	for(let slider of document.querySelectorAll(".volumeInput, .panInput"))
-	{
-		slider.addEventListener("input", sliderChange);
-		slider.addEventListener('touchstart', tapSlider);
-		slider.addEventListener('dblclick', resetSlider);
-	}
-
-	channelInputs = [...document.getElementsByClassName("volumeInput")];
-	panInputs = [...document.getElementsByClassName("panInput")];
-}
-
-/**
- * When socket is connected
- */
-function onOpen()
-{
-	document.body.classList.remove("disconnected");
-}
-
-/**
- * When a socket connection fails
- */
-function noConnection()
-{
-	// connection closed, discard old websocket and create a new one in 2s
-	if(ws)
-	{
-		ws.close();
-	}
-	clearTimeout(timeout);
-	timeout = setTimeout(startWebsocket, 2000);
-	document.body.classList.add("disconnected");
-}
-
-/**
- * Start the connection to the server
- */
-function startWebsocket()
-{
-	ws = new WebSocket("ws://" + document.location.host);
-	ws.onopen = onOpen;
-	ws.onmessage = onMessage;
-	ws.onclose = noConnection;
-	ws.onerror = noConnection;
-
-	/**
-	 * Safari on iOS 26.1 only connects to web socket every second page load. Calling startWebsocket
-	 * again seems to fix this. I don't know why and I can't find any other solutions.
-	 */
-	clearTimeout(timeout);
-	timeout = setTimeout(() => {
-		if(ws.readyState === WebSocket.CONNECTING)
-		{
-			startWebsocket();
-		}
-	}, 2000);
-}
-
-
-
-/**
- * When page has loaded
- */
-document.addEventListener("DOMContentLoaded", function()
-{
-	//ensure the browser doesn't remember checked status
-	panCheckbox.checked = false;
-
-	startWebsocket();
-
-	/**
-	 * Handle Aux Select Changes
-	 */
-	auxSelect.addEventListener("change", function(e)
-	{
-		//save aux value so it can be restored
-		localStorage.setItem("aux", this.value);
-
-		let option = this.getElementsByTagName("option")[this.selectedIndex];
-
-		//set the current page tint
-		let colour = option.dataset.colour;
-		document.body.style.setProperty('--tint', colour);
-
-		//set the current aux text
-		this.previousElementSibling.textContent = option.text;
-
-		this.previousElementSibling.previousElementSibling.src = option.dataset.icon;
-
-		//toggle visibility of the pan checkbox
-		if(option.dataset.stereo == "true")
-		{
-			panCheckbox.parentNode.style.display = "flex";
-		}
-		else
-		{
-			panCheckbox.parentNode.style.display = "none";
-		}
-
-		//disable panning if it was previously selected
-		panCheckbox.checked = false;
-		panCheckbox.dispatchEvent(new Event("change"));
-
-
-		//clear all current values
-		for(let channel of channelInputs)
-		{
-			channel.value = 0;
-			channel.parentNode.style.setProperty('--value', (channel.value * 100) + "%");
-		}
-		for(let channel of panInputs)
-		{
-			channel.value = 0.5;
-			channel.parentNode.style.setProperty('--value', (channel.value * 100) + "%");
-		}
-
-		//request all the channel values for the selected aux
-		requestValues();
-	});
-
-	/**
-	 * Handle Panning Checkbox changes
-	 */
-	panCheckbox.addEventListener("change", function(e)
-	{
-		if(this.checked)
-		{
-			document.body.classList.add("panning");
-		}
-		else
-		{
-			document.body.classList.remove("panning");
-		}
-	});
+enterFullscreenButton.addEventListener("click", async () => {
+  // Keep the faders usable when the layout controls disappear.
+  if (editingLayout) editLayoutButton.click();
+  enterFullscreenButton.disabled = true;
+  try {
+    if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+      await document.documentElement.requestFullscreen();
+    }
+    setFullscreenMode(true);
+  } catch {
+    // Mobile browsers may not allow native fullscreen; still offer the mixer-only view.
+    setFullscreenMode(true);
+  } finally {
+    enterFullscreenButton.disabled = false;
+  }
 });
 
-})();
+async function exitFullscreenMode() {
+  exitFullscreenButton.disabled = true;
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    setFullscreenMode(false);
+  } catch {
+    // Leave the exit control available if the browser refuses to exit.
+  } finally {
+    exitFullscreenButton.disabled = false;
+  }
+}
+
+exitFullscreenButton.addEventListener("click", exitFullscreenMode);
+document.addEventListener("fullscreenchange", () => setFullscreenMode(Boolean(document.fullscreenElement)));
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && document.body.classList.contains("fullscreen-mode") && !document.fullscreenElement) {
+    exitFullscreenMode();
+  }
+});
+
+
+function setConnectionStatus(connected) {
+  document.body.classList.toggle("connected", connected);
+  document.body.classList.toggle("disconnected", !connected);
+  updateMixStatus();
+}
+
+// Native DiGiCo sends are expressed in dB; retain v2's fader curve.
+function sliderToDb(value) {
+  if (!Number.isFinite(value) || value <= 0) return -150;
+  return Math.max(-150, Math.min(10, Math.log10(Math.min(1, value) * 100) * 50 - 90));
+}
+
+function dbToSlider(db) {
+  if (!Number.isFinite(db) || db <= -150) return 0;
+  return Math.max(0, Math.min(1, Math.pow(100, (db + 90) / 100) / 100));
+}
+
+function sendOSC(address, args = []) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+  ws.send(JSON.stringify({ address, args }));
+  return true;
+}
+
+function updateMixStatus() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) { mixerStatus.textContent = "Connecting…"; return; }
+  if (!mixerConfigReady) { mixerStatus.textContent = "Loading channels…"; return; }
+  if (!auxSelect.value) { mixerStatus.textContent = "No mixes enabled"; return; }
+  const loaded = Array.from(channelElements.values()).filter(({ slider }) => slider.dataset.ready === "true").length;
+  const total = channelElements.size;
+  const refreshing = Array.from(channelElements.values()).some(({ slider }) => slider.dataset.refreshing === "true");
+  mixerStatus.textContent = loaded === total ? "Connected" : (refreshing ? "Updating mix · " : "Loading mix · ") + loaded + "/" + total;
+}
+
+function updateLevel(slider, level, db = null) {
+  const valid = typeof level === "number" && Number.isFinite(level);
+  slider.dataset.refreshing = "false";
+  if (valid) slider.dataset.valueAux = auxSelect.value;
+  else delete slider.dataset.valueAux;
+  const value = valid ? Math.max(0, Math.min(1, level)) : 0;
+  slider.value = String(value);
+  slider.style.setProperty("--value", value * 100 + "%");
+  const readout = channelElements.get(slider.dataset.channel).readout;
+  const decibels = db === null ? sliderToDb(value) : db;
+  const dbText = decibels <= -150 ? "−∞" : String(Number(decibels.toFixed(1)));
+  readout.textContent = valid ? Math.round(value * 100) + "% / " + dbText + " dB" : "—";
+  readout.title = valid ? "Send level: " + dbText + " dB" : "Waiting for the desk";
+  slider.setAttribute("aria-valuetext", valid ? Math.round(value * 100) + " percent, " + (decibels <= -150 ? "off" : dbText + " decibels") : "Not loaded");
+}
+
+function clearPendingWrites() {
+  for (const pending of pendingWrites.values()) clearTimeout(pending.timer);
+  pendingWrites.clear();
+}
+
+function flushSlider(slider) {
+  const pending = pendingWrites.get(slider.dataset.channel);
+  if (!pending) return;
+  clearTimeout(pending.timer);
+  pendingWrites.delete(slider.dataset.channel);
+  if (editingLayout || slider.dataset.ready !== "true" || pending.aux !== auxSelect.value) return;
+  sendOSC("/Input_Channels/" + slider.dataset.channel + "/Aux_Send/" + pending.aux + "/send_level", [sliderToDb(pending.value)]);
+}
+
+function sliderChange() {
+  if (editingLayout || this.dataset.ready !== "true" || !ws || ws.readyState !== WebSocket.OPEN) return;
+  const value = Number(this.value);
+  updateLevel(this, value);
+  let pending = pendingWrites.get(this.dataset.channel);
+  if (pending) { pending.value = value; return; }
+  pending = { aux: auxSelect.value, value, timer: null };
+  pendingWrites.set(this.dataset.channel, pending);
+  pending.timer = setTimeout(() => flushSlider(this), WRITE_INTERVAL_MS);
+}
+
+function requestValues({ preserveValues = false } = {}) {
+  clearTimeout(queryTimer);
+  const generation = ++queryGeneration;
+  clearPendingWrites();
+  for (const { slider, readout } of channelElements.values()) {
+    slider.dataset.ready = "false";
+    if (preserveValues && slider.dataset.valueAux === auxSelect.value) {
+      slider.dataset.refreshing = "true";
+      readout.title = "Last known level; refreshing from the desk";
+      slider.setAttribute("aria-valuetext", readout.textContent + "; updating from the desk");
+    } else updateLevel(slider, null);
+  }
+  updateLayoutInputs(); updateMixStatus();
+  if (!ws || ws.readyState !== WebSocket.OPEN || !auxSelect.value) return;
+  const aux = auxSelect.value;
+  ws.send(JSON.stringify({ selectedAux: Number(aux) }));
+  function queryMissing(attempt = 0) {
+    const missing = Array.from(channelElements.values()).filter(({ slider }) => slider.dataset.ready !== "true");
+    let index = 0;
+    function queryNext() {
+      if (generation !== queryGeneration || aux !== auxSelect.value || !ws || ws.readyState !== WebSocket.OPEN) return;
+      if (index < missing.length) {
+        const slider = missing[index++].slider;
+        if (slider.dataset.ready !== "true") sendOSC("/Input_Channels/" + slider.dataset.channel + "/Aux_Send/" + aux + "/send_level/?");
+        queryTimer = setTimeout(queryNext, 12);
+      } else if (attempt < 2 && Array.from(channelElements.values()).some(({ slider }) => slider.dataset.ready !== "true")) {
+        queryTimer = setTimeout(() => queryMissing(attempt + 1), 1000);
+      } else if (Array.from(channelElements.values()).some(({ slider }) => slider.dataset.ready !== "true")) {
+        mixerStatus.textContent = "Some channels unavailable · change mix to retry";
+      }
+    }
+    queryNext();
+  }
+  queryMissing();
+}
+
+function applyFavourites() {
+  let visible = 0;
+  for (const row of channelsDiv.children) {
+    row.hidden = !editingLayout && favourites.checked && !row.querySelector('input[name="fav[]"]').checked;
+    if (!row.hidden) visible++;
+  }
+  emptyChannels.hidden = visible > 0 || editingLayout;
+  emptyChannels.textContent = channelsDiv.children.length ? "No favourites yet. Turn off Favourites to star channels." : "No channels configured for this mixer.";
+}
+
+function restoreFavourites() {
+  const saved = (localStorage.getItem("aux" + auxSelect.value + "fav") || "").split(",");
+  favourites.checked = localStorage.getItem("aux" + auxSelect.value + "favChecked") === "true";
+  for (const checkbox of channelsDiv.querySelectorAll('input[name="fav[]"]')) checkbox.checked = saved.includes(checkbox.value);
+  applyFavourites();
+}
+
+function onMessage(event) {
+  let json;
+  try { json = JSON.parse(event.data); } catch { return; }
+  if (!json || typeof json !== "object") return;
+  if (json.config) {
+    mixerConfigReady = true;
+    buildChannels(Array.isArray(json.config.channels) ? json.config.channels : []);
+    updateSnapshot(json.config.snapshot);
+    buildAux(Array.isArray(json.config.aux) ? json.config.aux : []);
+    document.dispatchEvent(new Event("mixer-config-ready"));
+    return;
+  }
+  if (typeof json.address !== "string" || !Array.isArray(json.args)) return;
+  if (json.address === "/MixReload") { requestValues({ preserveValues: true }); return; }
+  if (json.address === "/SnapshotName") { updateSnapshot(json.args[0]); return; }
+  const levelMatch = json.address.match(/^\/Input_Channels\/(\d+)\/Aux_Send\/(\d+)\/send_level$/);
+  if (levelMatch) {
+    if (levelMatch[2] !== auxSelect.value) return;
+    const controls = channelElements.get(levelMatch[1]);
+    const db = json.args[0];
+    if (!controls || typeof db !== "number" || !Number.isFinite(db)) return;
+    controls.slider.dataset.ready = "true";
+    updateLevel(controls.slider, dbToSlider(db), db);
+    controls.slider.disabled = editingLayout || !ws || ws.readyState !== WebSocket.OPEN;
+    updateMixStatus();
+    return;
+  }
+  const channelMatch = json.address.match(/^\/Input_Channels\/(\d+)\/Channel_Input\/name$/);
+  if (channelMatch) {
+    const controls = channelElements.get(channelMatch[1]);
+    if (controls) {
+      const name = String(json.args[0] || "Channel " + channelMatch[1]);
+      controls.name.textContent = name;
+      controls.name.title = name;
+      controls.slider.setAttribute("aria-label", name + " send level");
+      controls.handle.setAttribute("aria-label", "Move " + name);
+      controls.checkbox.setAttribute("aria-label", "Favourite " + name);
+    }
+  }
+  const auxMatch = json.address.match(/^\/Aux_Outputs\/(\d+)\/Buss_Trim\/name$/);
+  if (auxMatch) {
+    for (const option of auxSelect.options) if (option.value === auxMatch[1]) option.textContent = String(json.args[0] || "AUX " + auxMatch[1]);
+  }
+}
+
+function updateSnapshot(name) {
+  snapshotName.textContent = typeof name === "string" ? name : "";
+  snapshotName.title = "Desk snapshot: " + snapshotName.textContent;
+  snapshotName.hidden = !snapshotName.textContent;
+}
+
+function formatColour(colour) {
+  const rgb = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(colour || "");
+  return rgb ? rgb.slice(1).map(value => parseInt(value, 16)).join(", ") : "239, 68, 68";
+}
+
+function buildAux(options) {
+  options = options.filter(aux => aux.enabled !== false);
+  const saved = localStorage.getItem("aux");
+  auxSelect.replaceChildren();
+  for (const aux of options) {
+    const option = document.createElement("option");
+    option.value = String(aux.channel);
+    option.textContent = aux.label || "AUX " + aux.channel;
+    option.dataset.colour = formatColour(aux.colour);
+    auxSelect.appendChild(option);
+  }
+  auxSelect.disabled = !options.length;
+  if (options.some(aux => String(aux.channel) === saved)) auxSelect.value = saved;
+  if (options.length) auxSelect.dispatchEvent(new Event("change"));
+  else requestValues();
+}
+
+function buildChannels(channels) {
+  channels = channels.filter(channel => channel.enabled !== false).sort((a, b) => (a.order ?? a.channel) - (b.order ?? b.channel));
+  defaultChannelOrder = channels.map(channel => String(channel.channel));
+  if (channelSorter) channelSorter.destroy();
+  clearPendingWrites();
+  channelElements.clear();
+  channelsDiv.replaceChildren();
+  for (const channel of channels) {
+    const row = document.createElement("div");
+    row.className = "channel-card";
+    row.dataset.channel = String(channel.channel);
+    row.innerHTML = '<button type="button" class="drag-handle" title="Drag to reorder">' + appIcon("gripVertical") + '</button><div class="channel-header"><span class="channel-name"></span><input class="fader volumeInput" type="range" min="0" max="1" step="0.001" value="0" disabled><output class="level-readout">—</output><label class="favourite"><input type="checkbox" name="fav[]">' + appIcon("star") + '</label></div>';
+    const name = channel.label || "Channel " + channel.channel;
+    row.querySelector(".channel-name").textContent = name;
+    row.querySelector(".channel-name").title = name;
+    const slider = row.querySelector(".volumeInput");
+    slider.dataset.channel = String(channel.channel);
+    slider.dataset.ready = "false";
+    slider.setAttribute("aria-label", name + " send level");
+    slider.addEventListener("input", sliderChange);
+    for (const event of ["change", "pointerup", "pointercancel", "keyup", "blur"]) slider.addEventListener(event, () => flushSlider(slider));
+    const checkbox = row.querySelector('input[name="fav[]"]');
+    checkbox.value = String(channel.channel);
+    checkbox.setAttribute("aria-label", "Favourite " + name);
+    const handle = row.querySelector(".drag-handle");
+    handle.setAttribute("aria-label", "Move " + name);
+    handle.addEventListener("keydown", moveChannelWithKeys);
+    channelElements.set(String(channel.channel), { row, slider, checkbox, handle, name: row.querySelector(".channel-name"), readout: row.querySelector(".level-readout") });
+    channelsDiv.appendChild(row);
+  }
+  restoreChannelOrder();
+  channelSorter = new Sortable(channelsDiv, {
+    disabled: !editingLayout, draggable: "> .channel-card", handle: ".drag-handle", direction: () => isGridLayout() ? "horizontal" : "vertical",
+    animation: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 180,
+    ghostClass: "layout-placeholder", chosenClass: "layout-chosen", dragClass: "layout-drag",
+    forceFallback: true, fallbackOnBody: true, fallbackTolerance: 4,
+    scroll: document.getElementById("channelsWrap"), forceAutoScrollFallback: true, scrollSensitivity: 70, scrollSpeed: 12,
+    onEnd: saveChannelOrder,
+  });
+  updateSortingMode();
+  updateLayoutInputs();
+}
+
+function restoreChannelOrder() {
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem("channelLayout") || "[]"); } catch { return; }
+  if (!Array.isArray(saved)) return;
+  const rows = new Map(Array.from(channelsDiv.children, row => [row.dataset.channel, row]));
+  for (const id of saved) { const row = rows.get(String(id)); if (row) { channelsDiv.appendChild(row); rows.delete(String(id)); } }
+  for (const row of rows.values()) channelsDiv.appendChild(row);
+}
+
+function saveChannelOrder() {
+  localStorage.setItem("channelLayout", JSON.stringify(Array.from(channelsDiv.children, row => row.dataset.channel)));
+
+}
+
+function moveChannelWithKeys(event) {
+  const grid = isGridLayout();
+  const keys = grid ? ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"] : ["ArrowUp", "ArrowDown"];
+  if (!editingLayout || !keys.includes(event.key)) return;
+  event.preventDefault();
+  const row = event.currentTarget.parentElement;
+  const rows = Array.from(channelsDiv.children);
+  const columns = grid ? getComputedStyle(channelsDiv).gridTemplateColumns.split(" ").length : 1;
+  const index = rows.indexOf(row);
+  const delta = event.key === "ArrowUp" ? -columns : event.key === "ArrowDown" ? columns : event.key === "ArrowLeft" ? -1 : 1;
+  const target = index + delta;
+  if (target < 0 || target >= rows.length) return;
+  channelsDiv.insertBefore(row, delta > 0 ? rows[target].nextSibling : rows[target]);
+  event.currentTarget.focus(); row.scrollIntoView({ block: "nearest" }); saveChannelOrder();
+}
+
+function updateLayoutInputs() {
+  const connected = ws && ws.readyState === WebSocket.OPEN;
+  editLayoutButton.disabled = !channelsDiv.children.length;
+  favourites.disabled = editingLayout || !channelsDiv.children.length;
+  for (const { slider } of channelElements.values()) slider.disabled = editingLayout || !connected || slider.dataset.ready !== "true";
+  for (const checkbox of channelsDiv.querySelectorAll('input[name="fav[]"]')) checkbox.disabled = editingLayout;
+}
+
+auxSelect.addEventListener("change", () => {
+  localStorage.setItem("aux", auxSelect.value);
+  const option = auxSelect.selectedOptions[0];
+  if (option) document.body.style.setProperty("--tint", option.dataset.colour);
+  restoreFavourites(); requestValues();
+
+});
+favourites.addEventListener("change", () => {
+  localStorage.setItem("aux" + auxSelect.value + "favChecked", String(favourites.checked));
+  applyFavourites();
+
+});
+channelsDiv.addEventListener("change", event => {
+  if (event.target.name !== "fav[]") return;
+  localStorage.setItem("aux" + auxSelect.value + "fav", Array.from(channelsDiv.querySelectorAll('input[name="fav[]"]:checked'), checkbox => checkbox.value).join(","));
+  applyFavourites();
+
+});
+editLayoutButton.addEventListener("click", () => {
+  clearPendingWrites();
+  editingLayout = !editingLayout;
+  if (channelSorter) channelSorter.option("disabled", !editingLayout);
+  document.body.classList.toggle("editing-layout", editingLayout);
+  editLayoutButton.innerHTML = appIcon(editingLayout ? "check" : "pencil") + '<span>' + (editingLayout ? "Done" : "Edit layout") + '</span>';
+  editLayoutButton.setAttribute("aria-pressed", String(editingLayout));
+  layoutHint.hidden = !editingLayout;
+  updateSortingMode();
+  document.getElementById("listView").disabled = editingLayout;
+  document.getElementById("gridView").disabled = editingLayout;
+  updateLayoutInputs(); applyFavourites();
+});
+
+function startWebsocket() {
+  clearTimeout(reconnectTimer);
+  clearTimeout(connectionTimer);
+  ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host);
+  const socket = ws;
+  socket.onopen = () => { if (ws === socket) { clearTimeout(connectionTimer); setConnectionStatus(true); sendDeviceUsername(socket); } };
+  socket.onmessage = event => { if (ws === socket) onMessage(event); };
+  socket.onerror = () => socket.close();
+  socket.onclose = () => {
+    if (ws !== socket) return;
+    clearTimeout(connectionTimer); clearTimeout(queryTimer); queryGeneration++;
+    mixerConfigReady = false;
+    clearPendingWrites();
+    for (const { slider } of channelElements.values()) { slider.dataset.ready = "false"; updateLevel(slider, null); }
+    setConnectionStatus(false); updateLayoutInputs();
+    reconnectTimer = setTimeout(startWebsocket, 2000);
+  };
+  // Retry a stalled handshake, including the intermittent iOS Safari failure.
+  connectionTimer = setTimeout(() => { if (ws === socket && socket.readyState === WebSocket.CONNECTING) socket.close(); }, 3000);
+}
+startWebsocket();
+document.addEventListener("device-username-changed", () => sendDeviceUsername(ws));
+
+const listViewButton = document.getElementById("listView");
+const gridViewButton = document.getElementById("gridView");
+function setChannelView(view) {
+  const grid = view === "grid";
+  document.body.classList.toggle("grid-view", grid);
+  listViewButton.setAttribute("aria-pressed", String(!grid));
+  gridViewButton.setAttribute("aria-pressed", String(grid));
+  updateSortingMode();
+}
+listViewButton.addEventListener("click", () => { localStorage.setItem("channelView", "list"); setChannelView("list"); });
+gridViewButton.addEventListener("click", () => { localStorage.setItem("channelView", "grid"); setChannelView("grid"); });
+setChannelView(localStorage.getItem("channelView") || "list");
+
+const compactModeButton = document.getElementById("compactMode");
+function setCompactMode(compact) {
+  document.body.classList.toggle("compact-mode", compact);
+  compactModeButton.setAttribute("aria-pressed", String(compact));
+}
+compactModeButton.addEventListener("click", () => {
+  const compact = !document.body.classList.contains("compact-mode");
+  localStorage.setItem("compactMode", String(compact));
+  setCompactMode(compact);
+});
+setCompactMode(localStorage.getItem("compactMode") === "true");
+
+function isGridLayout() {
+  return document.body.classList.contains("grid-view") && window.matchMedia("(min-width: 700px)").matches;
+}
+function updateSortingMode() {
+  if (channelSorter) channelSorter.option("handle", isGridLayout() ? null : ".drag-handle");
+  layoutHint.textContent = isGridLayout()
+    ? "Drag cards to reorder."
+    : "Drag a handle to reorder.";
+}
+window.matchMedia("(min-width: 700px)").addEventListener("change", updateSortingMode);

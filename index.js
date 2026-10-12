@@ -5,17 +5,37 @@ const express = require("express");
 const http = require('http');
 const webSocket = require("ws");
 const fs = require('fs');
+const QRCode = require('qrcode');
 
 const configManager = require("./lib/config/configManager.js")
 const logger = require('./lib/logging/logger.js');
 const { getMainIPAddress, generateColour } = require('./lib/utils/utils.js');
-const { createAdminAuthMiddleware } = require('./lib/adminAuth.js');
+const { createAdminAuth } = require('./lib/admin-session.js');
+const { useTemplateRoutes, deviceUsername } = require('./lib/templates.js');
+const { dbToSlider, panToCentered, colourToRGB } = require('./lib/mix-values.js');
+const { QueryQueue } = require('./lib/query-queue.js');
+let adminAuth;
+let discoveryTimer = null;
+let nextClientId = 1;
+let qrURL = null;
+let qrImage = null;
+const disconnectedClients = [];
+const queryQueue = new QueryQueue(msg => {
+	if(udpPort && loaded) udpPort.send(msg, config.desk.ip, config.desk.port);
+});
 
 /**
  * Stores global configuration for webmixer
  */
 configManager.ensureConfigDirectoryExists();
 let config = configManager.getGlobalConfigOrDefault();
+for(const [name, section] of [['OSC_WEBMIXER_WEB_PORT', 'server'], ['OSC_WEBMIXER_OSC_PORT', 'osc']]) {
+	if(process.env[name]) {
+		const port = Number(process.env[name]);
+		if(!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(name + ' must be a valid port.');
+		config[section].port = port;
+	}
+}
 let currentState = configManager.getCurrentStateOrDefault();
 
 // Configure logger to use settings from global config
@@ -182,6 +202,30 @@ function startServer()
 {
 	// Create an Express-based Web Socket server that clients can connect to
 	let app = express();
+	app.use(express.urlencoded({ extended: true }));
+	app.use(express.json());
+	adminAuth.register(app);
+	useTemplateRoutes(app);
+	app.get('/api/admin/status', async (req, res) => {
+		const mix = getVisibleConfig();
+		const clients = connections.filter(socket => !socket.isObserver && socket.readyState === webSocket.OPEN);
+		const selectedAux = Number(req.query.aux);
+		if(loaded && mix.aux.some(aux => aux.channel === selectedAux)) warmAux(selectedAux);
+		const url = getServerURL() + '/';
+		if(qrURL !== url) {
+			qrURL = url;
+			qrImage = QRCode.toDataURL(url);
+		}
+		res.json({
+			url, qr: await qrImage, loaded, snapshot: currentSnapshotName,
+			connections: clients.length, authEnabled: false,
+			adminPasswordEnabled: adminAuth.isEnabled(),
+			clients: clients.map(socket => serializeClient(socket, null, mix)), disconnectedClients,
+			aux: mix.aux.map(aux => ({ ...aux, colour: colourToRGB(aux.colour) })),
+			channels: mix.channels,
+			mixLevels: Object.fromEntries(mix.aux.map(aux => [aux.channel, getClientLevels(aux.channel, mix.channels)]))
+		});
+	});
 
 	// Apply no-cache policy for admin endpoints to prevent stale browser state
 	app.use(["/admin", "/admin.html", "/admin.js", "/admin.css"], (req, res, next) => {
@@ -191,13 +235,6 @@ function startServer()
 
 	// Tell express to use all the static files in /web
 	app.use("/", express.static(__dirname + "/web"));
-
-	// Tell express that we are expecting post data
-	app.use(express.urlencoded({
-		extended: true
-	}));
-
-	app.use(express.json());
 
 	// Create the web server
 	server = http.createServer(app);
@@ -211,35 +248,41 @@ function startServer()
 		}
 		logger.error("Web server error: " + (err && err.stack ? err.stack : err));
 	});
-	server.listen(config.server.port);
+	server.listen(config.server.port, process.env.OSC_WEBMIXER_BIND_ADDRESS || "0.0.0.0");
 
-	// Protects the admin area. Unauthenticated by default (matches the trusted-LAN
-	// deployment model); set ADMIN_USER/ADMIN_PASSWORD to require Basic Auth instead.
-	const requireAdminAuth = createAdminAuthMiddleware();
-
+	// Session middleware above protects both dashboard and native settings routes.
 	//when a post request occurs in the admin area
-	app.post('/admin', requireAdminAuth, (req, res) => {
+	app.post('/admin', (req, res) => {
 
+		const requestedWebPort = Number(process.env.OSC_WEBMIXER_WEB_PORT || req.body.server_port);
+		const requestedOscPort = Number(process.env.OSC_WEBMIXER_OSC_PORT || req.body.osc_port);
+		const requestedDeskPort = Number(req.body.desk_port);
+		const validPort = port => Number.isInteger(port) && port >= 1 && port <= 65535;
+		if(![requestedWebPort, requestedOscPort, requestedDeskPort].every(validPort) ||
+			typeof req.body.desk_ip !== 'string' || !req.body.desk_ip.trim()) {
+			res.status(400).json({ error: 'Enter a desk address and port numbers between 1 and 65535.' }); return;
+		}
+		const deskChanged = config.desk.ip !== req.body.desk_ip.trim() || Number(config.desk.port) !== requestedDeskPort;
 		//update config with new values
 		let portChanged = false;
-		if(config.server.port != req.body.server_port)
+		if(config.server.port != requestedWebPort)
 		{
 			portChanged = true;
-			config.server.port = req.body.server_port;
+			config.server.port = requestedWebPort;
 		}
 
 		let oscPortChanged = false;
-		if(config.osc.port != req.body.osc_port)
+		if(config.osc.port != requestedOscPort)
 		{
 			oscPortChanged = true;
-			config.osc.port = req.body.osc_port;
+			config.osc.port = requestedOscPort;
 		}
 
 		config.debug = req.body.debug == "debug";
 		logger.setDebug(config.debug);
 
-		config.desk.ip = req.body.desk_ip;
-		config.desk.port = req.body.desk_port;
+		config.desk.ip = req.body.desk_ip.trim();
+		config.desk.port = requestedDeskPort;
 
 		config.externalDevices = [];
 		if(req.body.externalName)
@@ -331,10 +374,9 @@ function startServer()
 		//force webmixer client and admin connections to reload
 		closeAllWebsocketConnections();
 
-		if(oscPortChanged)
+		if(oscPortChanged || deskChanged)
 		{
-			stopOSC();
-			startOSC();
+			stopOSC(startOSC);
 		}
 
 		if(portChanged)
@@ -345,6 +387,7 @@ function startServer()
 			if(wss)
 			{
 				wss.close();
+				wss = null;
 			}
 
 			//close web server
@@ -353,17 +396,17 @@ function startServer()
 			logger.warn(`Server port has changed. Please visit ${getServerURL()} to continue.`);
 
 			//respond with redirection to the new port
-			res.send(`<script>document.location.href="${getServerURL()}/admin";</script>`);
+			res.send(`<script>document.location.href="${getServerURL()}/admin.html#desk-settings";</script>`);
 
 			startServer();
 			return;
 		}
 
-		res.sendFile(__dirname + "/web/admin.html");
+		res.json({ success: true });
 	});
 
 	//when a get request occurs in the admin area
-	app.get('/admin', requireAdminAuth, (req, res) => {
+	app.get('/admin', (req, res) => {
 		res.sendFile(__dirname + "/web/admin.html");
 	});
 
@@ -593,6 +636,7 @@ function startServer()
 	});
 
 	logger.info(`Web Server Ready. Please visit ${getServerURL()}/admin in a web browser to configure OSC Web Mixer.`);
+	startWebSocketServer();
 }
 
 /**
@@ -600,6 +644,10 @@ function startServer()
  */
 function getServerURL()
 {
+	if(process.env.OSC_WEBMIXER_PUBLIC_URL)
+	{
+		return process.env.OSC_WEBMIXER_PUBLIC_URL.replace(/\/$/, "");
+	}
 	let url = `http://${mixServerIP}`;
 	if(config.server.port != 80)
 	{
@@ -608,97 +656,111 @@ function getServerURL()
 	return url;
 }
 
+function getVisibleConfig() {
+	const result = JSON.parse(buildConfig()).config;
+	result.channels = result.channels.filter(channel => channel.enabled).sort((a, b) => a.order - b.order);
+	result.aux = result.aux.filter(aux => aux.enabled);
+	return result;
+}
+
+function getClientLevels(aux, channels = getVisibleConfig().channels) {
+	return channels.map(channel => {
+		const prefix = '/Input_Channels/' + channel.channel + '/Aux_Send/' + aux;
+		return { channel: channel.channel, label: channel.label,
+			level: dbToSlider(cache.get(prefix + '/send_level')?.args[0]),
+			pan: panToCentered(cache.get(prefix + '/send_pan')?.args[0]) };
+	});
+}
+
+function serializeClient(socket, disconnectedAt = null, mix = getVisibleConfig()) {
+	const info = socket.clientInfo;
+	const aux = mix.aux.find(entry => entry.channel === info.aux);
+	return { ...info, disconnectedAt, auxLabel: aux?.label ?? null,
+		auxColour: colourToRGB(aux?.colour), levels: info.aux ? getClientLevels(info.aux, mix.channels) : null };
+}
+
+function logClient(socket, entry) {
+	socket.clientInfo.log.push({ at: Date.now(), ...entry });
+	if(socket.clientInfo.log.length > 100) socket.clientInfo.log.shift();
+}
+
+function selectClientAux(socket, aux) {
+	const selected = socket.mixConfig.aux.find(entry => entry.channel === aux);
+	if(!selected) return false;
+	if(socket.clientInfo.aux !== aux) {
+		logClient(socket, { type: 'aux', aux, auxLabel: selected.label, value: aux });
+		socket.clientInfo.aux = aux;
+		warmAux(aux, true, socket.mixConfig);
+	}
+	return true;
+}
+
+function warmAux(aux, priority = true, mix = getVisibleConfig()) {
+	const stereo = mix.aux.find(entry => entry.channel === aux)?.stereo;
+	for(const channel of mix.channels) {
+		const prefix = '/Input_Channels/' + channel.channel + '/Aux_Send/' + aux;
+		if(!cache.has(prefix + '/send_level')) queryQueue.request(prefix + '/send_level', priority);
+		if(stereo && !cache.has(prefix + '/send_pan')) queryQueue.request(prefix + '/send_pan', priority);
+	}
+}
+
 function startWebSocketServer() {
-	// Create the web socket server
-	wss = new webSocket.Server({
-		server: server
-	});
-
-	//when a webmixer user has connected
-	wss.on("connection", function(socket)
-	{
-		//only allow connections once everything has loaded
-		if(!loaded)
-		{
-			socket.close();
-			return;
-		}
-
-		//save the new connection
+	if(wss) return;
+	wss = new webSocket.Server({ server });
+	wss.on('connection', function(socket, req) {
+		if(!loaded) { socket.close(); return; }
+		socket.isObserver = new URL(req.url, 'http://localhost').searchParams.get('role') === 'observer';
+		// Settings changes close clients; reuse this configuration during fader moves.
+		socket.mixConfig = getVisibleConfig();
+		socket.clientInfo = { id: nextClientId++, username: null, address: req.socket.remoteAddress,
+			connectedAt: Date.now(), lastActivity: Date.now(), aux: null, log: [] };
 		connections.push(socket);
-
-		//drop it from the list as soon as it closes, rather than waiting for the
-		//next broadcast to prune it
-		socket.on('close', function()
-		{
-			connections = connections.filter(function(c) { return c !== socket; });
-		});
-
-		//drop it from the list as soon as it closes, rather than waiting for the
-		//next broadcast to prune it
-		socket.on('close', function()
-		{
-			connections = connections.filter(function(c) { return c !== socket; });
-		});
-
-		logger.debug(`New WebSocket client connected. (Total: ${connections.length})`);
-
-		//send config for new connections
 		socket.send(buildConfig());
-
-		//when a message has been sent from a webmixer user
-		socket.on('message', function message(data)
-		{
-			let oscMsg;
-			try
-			{
-				oscMsg = JSON.parse(data);
-			}
-			catch(e)
-			{
-				logger.warn("Ignoring malformed message from socket client: " + data);
+		socket.on('message', function(data) {
+			let msg;
+			try { msg = JSON.parse(data.toString()); } catch { return; }
+			if(!msg || typeof msg !== 'object' || Array.isArray(msg)) return;
+			if(socket.isObserver) return;
+			socket.clientInfo.lastActivity = Date.now();
+			if('username' in msg) {
+				try { socket.clientInfo.username = deviceUsername(msg.username); } catch {}
 				return;
 			}
-			logger.debug("Message recieved from websocket client: " + JSON.stringify(oscMsg));
-
-			//ignore messages that are already cached
-			if(cache.has(oscMsg.address) && JSON.stringify(cache.get(oscMsg.address)) == JSON.stringify(oscMsg))
-			{
-				logger.debug("Message already in cache " + JSON.stringify(oscMsg));
+			if('selectedAux' in msg) { selectClientAux(socket, Number(msg.selectedAux)); return; }
+			if(typeof msg.address !== 'string' || !Array.isArray(msg.args)) return;
+			const match = /^\/Input_Channels\/(\d+)\/Aux_Send\/(\d+)\/send_(level|pan)(\/\?)?$/.exec(msg.address);
+			if(!match) return;
+			const channel = Number(match[1]), aux = Number(match[2]), parameter = match[3], query = !!match[4];
+			const mix = socket.mixConfig;
+			if(!mix.channels.some(entry => entry.channel === channel) || !mix.aux.some(entry => entry.channel === aux)) return;
+			if(query ? msg.args.length !== 0 : (msg.args.length !== 1 || !Number.isFinite(msg.args[0]) ||
+				(parameter === 'level' ? msg.args[0] < -150 || msg.args[0] > 10 : msg.args[0] < 0 || msg.args[0] > 1))) return;
+			selectClientAux(socket, aux);
+			msg = processPlugins(msg);
+			if(msg === false) return;
+			if(query) {
+				const key = msg.address.slice(0, -2);
+				if(cache.has(key)) socket.send(JSON.stringify(cache.get(key)));
+				else queryQueue.request(key, true);
 				return;
 			}
-
-
-			oscMsg = processPlugins(oscMsg);
-			if(oscMsg === false)
-			{
-				return;
-			}
-
-			//respond from cache if a value exists
-			const key = oscMsg.address.slice(0,-2);
-			if(oscMsg.address.substr(-2) == "/?" && cache.has(key))
-			{
-				this.send(JSON.stringify(cache.get(key)));
-				return;
-			}
-
-			maybeCacheResponse(oscMsg);
-
-			broadcast(oscMsg, this);
+			if(cache.has(msg.address) && JSON.stringify(cache.get(msg.address)) === JSON.stringify(msg)) return;
+			const previous = cache.get(msg.address)?.args[0];
+			logClient(socket, { type: parameter, aux, auxLabel: cache.get(`/Aux_Outputs/${aux}/Buss_Trim/name`)?.args[0],
+				channel, channelLabel: cache.get(`/Input_Channels/${channel}/Channel_Input/name`)?.args[0],
+				value: parameter === 'level' ? dbToSlider(msg.args[0]) : panToCentered(msg.args[0]),
+				previousValue: parameter === 'level' ? dbToSlider(previous) : panToCentered(previous) });
+			maybeCacheResponse(msg);
+			broadcast(msg, socket);
 		});
-
-		socket.on("close", function(code, reason) {
-			connections = connections.filter(conn => conn !== socket);
-			logger.debug(`Websocket client disconnected. (Total: ${connections.length})`);
+		socket.on('close', () => {
+			if(!socket.isObserver) disconnectedClients.unshift(serializeClient(socket, Date.now()));
+			if(disconnectedClients.length > 50) disconnectedClients.pop();
+			connections = connections.filter(connection => connection !== socket);
 		});
+		socket.on('error', err => logger.debug('Client socket error: ' + err.message));
 	});
-
-	//when a websocket error occurs
-	wss.on("error", function (err)
-	{
-		logger.error("wss error: " + (err && err.stack ? err.stack : err));
-	});
+	wss.on('error', err => logger.error('wss error: ' + err));
 }
 
 /**
@@ -753,12 +815,9 @@ function fetchValues()
 		return;
 	}
 
-	const osc = {address: "/Console/Channels/?", args: []};
-	udpPort.send(osc, config.desk.ip, config.desk.port);
-
-	logger.debug("Requesting channels from Mixing Desk");
-
-	setTimeout(fetchValues, 3000);
+	if(config.desk.ip) loadNextRequiredParameter();
+	clearTimeout(discoveryTimer);
+	if(!loaded) discoveryTimer = setTimeout(fetchValues, 3000);
 }
 
 /**
@@ -767,7 +826,7 @@ function fetchValues()
 function startOSC()
 {
 	udpPort = new osc.UDPPort({
-		localAddress: "0.0.0.0",
+		localAddress: process.env.OSC_WEBMIXER_BIND_ADDRESS || "0.0.0.0",
 		localPort: config.osc.port
 	});
 
@@ -796,17 +855,22 @@ function startOSC()
 		//session has changed. Reload
 		if(oscMsg.address == "/Console/Session/!")
 		{
+			queryQueue.clear();
 			cache.clear();
 			loaded = false;
+			currentSnapshot = -1;
+			currentSnapshotName = '';
 			closeAllWebsocketConnections();
 			fetchValues();
 			return;
 		}
 
 		//ignore messages that are already cached
+		queryQueue.received(oscMsg.address);
 		if(cache.has(oscMsg.address) && JSON.stringify(cache.get(oscMsg.address)) == JSON.stringify(oscMsg))
 		{
 			logger.debug("Message already in cache " + JSON.stringify(oscMsg));
+			if(!loaded) loadNextRequiredParameter();
 			return;
 		}
 
@@ -851,6 +915,13 @@ function processSnapshotMsg(oscMsg)
 {
 	if(oscMsg.address == "/Snapshots/Current_Snapshot")
 	{
+		if(loaded && currentSnapshot !== -1 && currentSnapshot !== oscMsg.args[0]) {
+			queryQueue.clear();
+			for(const address of cache.keys()) if(/\/Aux_Send\/\d+\/send_(level|pan)$/.test(address)) cache.delete(address);
+			for(const socket of connections) if(socket.readyState === webSocket.OPEN) {
+				socket.send(JSON.stringify({ address: '/MixReload', args: [] }));
+			}
+		}
 		currentSnapshot = oscMsg.args[0];
 
 		//when the current snapshot has been deleted
@@ -944,18 +1015,20 @@ function broadcast(oscMsg, source)
 
 	//notify all webmixer connections
 	let validConnections = [];
+	const payload = JSON.stringify(oscMsg);
+	const sendAux = /^\/Input_Channels\/\d+\/Aux_Send\/(\d+)\/send_(?:level|pan)$/.exec(oscMsg.address);
 	connections.forEach(function(connection)
 	{
 		/**
 		* CONNECTING = 0
 		* OPEN = 1
 		*/
-		if(connection.readyState <= 1)
+		if(connection.readyState === webSocket.OPEN)
 		{
 			validConnections.push(connection);
-			if(connection != source)
+			if(connection != source && (!sendAux || connection.clientInfo?.aux == null || connection.clientInfo.aux === Number(sendAux[1])))
 			{
-				connection.send(JSON.stringify(oscMsg));
+				connection.send(payload);
 				logger.debug(`Sent ${JSON.stringify(oscMsg)} to socket ${validConnections.length}`);
 			}
 		}
@@ -966,9 +1039,21 @@ function broadcast(oscMsg, source)
 /**
  * Stop listening to OSC messages
  */
-function stopOSC()
+function stopOSC(onClosed)
 {
-	udpPort.close();
+	clearTimeout(discoveryTimer);
+	queryQueue.clear();
+	cache.clear();
+	loaded = false;
+	currentSnapshot = -1;
+	currentSnapshotName = '';
+	closeAllWebsocketConnections();
+	const previousPort = udpPort;
+	udpPort = undefined;
+	if(previousPort) {
+		if(onClosed) previousPort.once('close', onClosed);
+		previousPort.close();
+	} else if(onClosed) onClosed();
 }
 
 /**
@@ -1041,16 +1126,14 @@ function loadNextRequiredParameter()
 	//We can then request the name of that snapshot
 	udpPort.send({address: "/Snapshots/Current_Snapshot/?", args: []}, config.desk.ip, config.desk.port);
 
-	cachePrimeInterval = setInterval(primeCache, 100);
-
 	loaded = true;
+	primeCache();
+	clearTimeout(discoveryTimer);
 	logger.info("Loaded values from mixing desk.");
 
 	startWebSocketServer();
 	logger.info("Webmixer ready to use.");
 }
-
-let cachePrimeInterval = null;
 
 /**
  * Load AUX levels and panning values into the cache.
@@ -1060,43 +1143,9 @@ let cachePrimeInterval = null;
 function primeCache()
 {
 	logger.debug("Priming Cache");
-
-	//request all aux level and pan values if they have been saved in config
-	if(currentState.channels && currentState.auxes)
-	{
-		for(let aux=0; aux<currentState.auxes.length; aux++)
-		{
-			if(!currentState.auxes[aux].enabled)
-			{
-				continue;
-			}
-
-			for(let channel=0; channel<currentState.channels.length; channel++)
-			{
-				if(!currentState.channels[channel].enabled)
-				{
-					continue;
-				}
-
-				//request level
-				if(!cache.has(`/Input_Channels/${channel+1}/Aux_Send/${aux+1}/send_level`))
-				{
-					udpPort.send({address: `/Input_Channels/${channel+1}/Aux_Send/${aux+1}/send_level/?`, args: []}, config.desk.ip, config.desk.port);
-					return;
-				}
-				//request pan
-				if(!cache.has(`/Input_Channels/${channel+1}/Aux_Send/${aux+1}/send_pan`))
-				{
-					udpPort.send({address: `/Input_Channels/${channel+1}/Aux_Send/${aux+1}/send_pan/?`, args: []}, config.desk.ip, config.desk.port);
-					return;
-				}
-			}
-		}
-	}
-
-	clearInterval(cachePrimeInterval);
-
-	logger.debug("Cache Primed");
+	const mix = getVisibleConfig();
+	for(const aux of mix.aux) warmAux(aux.channel, false, mix);
+	logger.debug("Background cache queries queued");
 }
 
 /**
@@ -1141,5 +1190,8 @@ function processPlugins(oscMsg)
 	return oscMsg;
 }
 
-startServer();
-startOSC();
+createAdminAuth().then(auth => {
+	adminAuth = auth;
+	startServer();
+	startOSC();
+}).catch(error => { logger.error(error.stack || error); process.exit(1); });

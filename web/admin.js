@@ -1,940 +1,614 @@
 "use strict";
 
-const externalDiv = document.getElementById("externalDevices"),
-ipAddress = document.querySelector("input[name=ip_address]"),
-serverPort = document.querySelector("input[name=server_port]"),
-oscReceivePort = document.querySelector("input[name=osc_port]"),
-deskSendPort = document.querySelector("input[name=desk_send_port]"),
-deskIP = document.querySelector("input[name=desk_ip]"),
-deskReceivePort = document.querySelector("input[name=desk_port]"),
-configForm = document.getElementById("configForm"),
-debug = document.querySelector("input[name=debug]"),
-auxiliaries = document.getElementById("auxiliaries"),
-channels = document.getElementById("channels"),
-iconDialog = document.getElementById("iconDialog");
+const loadingEl = document.getElementById("loading");
+const contentEl = document.getElementById("content");
+const errorEl = document.getElementById("error");
+const connectionsEl = document.getElementById("connections");
+const authStatusEl = document.getElementById("authStatus");
+const auxCountEl = document.getElementById("auxCount");
+const channelCountEl = document.getElementById("channelCount");
+const mixerUrlEl = document.getElementById("mixerUrl");
+const copyUrlBtn = document.getElementById("copyUrl");
+const qrCodeEl = document.getElementById("qrCode");
+const auxTableEl = document.getElementById("auxTable");
+const channelTableEl = document.getElementById("channelTable");
+const clientsListEl = document.getElementById("clientsList");
+const noClientsEl = document.getElementById("noClients");
+const disconnectedSectionEl = document.getElementById("disconnectedSection");
+const disconnectedClientsListEl = document.getElementById(
+  "disconnectedClientsList",
+);
+const auxMenuEl = document.getElementById("auxMenu");
+const liveMixPanelEl = document.getElementById("liveMixPanel");
+const liveMixFoldEl = document.getElementById("liveMixFold");
+const liveMixSummaryEl = document.getElementById("liveMixSummary");
+const liveMixHintEl = document.getElementById("liveMixHint");
+const liveMixTitleEl = document.getElementById("liveMixTitle");
+const liveMixChannelsEl = document.getElementById("liveMixChannels");
+const panToggleEl = document.getElementById("panToggle");
+const panToggleLabelEl = document.getElementById("panToggleLabel");
+const sidebarNavEl = document.getElementById("sidebarNav");
+const sidebarToggleEl = document.getElementById("sidebarToggle");
+const pageTitleEl = document.getElementById("pageTitle");
+const pageEls = document.querySelectorAll(".page");
+const navItemEls = document.querySelectorAll(".nav-item");
 
-let ws = null,
-timeout = null;
+const pageTitles = {
+  overview: "Overview",
+  "live-mix": "Live mix",
+  clients: "Clients",
+  templates: "Templates",
+  config: "Config",
+  "desk-settings": "Desk settings",
+};
 
-/**
- * Callback for delete button for external devices
- * @param {MouseEvent} e
- */
-function deleteExternal(e)
-{
-	e.preventDefault();
-	e.target.closest(".external").remove();
+const logIcons = { aux: appIcon("headphones"), level: appIcon("volume2"), pan: appIcon("moveHorizontal") };
+
+const foldableOpen = new Map();
+
+let statusLoading = false;
+let currentUrl = "";
+let auxOptions = [];
+let mixLevels = {};
+let selectedAux = sessionStorage.getItem("adminSelectedAux");
+let showPan = sessionStorage.getItem("adminShowPan") === "true";
+let currentPage =
+  window.location.hash.replace("#", "") ||
+  sessionStorage.getItem("adminPage") ||
+  "overview";
+
+function showPage(page) {
+  if (!pageTitles[page]) {
+    page = "overview";
+  }
+
+  if (page === "clients") {
+    for (const key of foldableOpen.keys()) {
+      if (key.startsWith("adminClientFold-")) {
+        foldableOpen.delete(key);
+      }
+    }
+    [clientsListEl, disconnectedClientsListEl].forEach((container) => {
+      container.querySelectorAll(".client-fold").forEach((el) => {
+        el.open = false;
+      });
+    });
+  }
+
+  currentPage = page;
+  sessionStorage.setItem("adminPage", page);
+  window.location.hash = page;
+
+  pageTitleEl.textContent = pageTitles[page];
+
+  pageEls.forEach((el) => {
+    el.classList.toggle("active", el.dataset.page === page);
+  });
+
+  navItemEls.forEach((el) => {
+    el.classList.toggle("active", el.dataset.page === page);
+  });
+
+  closeAdminNavigation();
+  document.dispatchEvent(new CustomEvent("admin-page-changed", { detail: { page } }));
+  if (page === "live-mix") void loadStatus();
 }
 
-/**
- * Update the value of a hidden because checkbox fields don't get sent when blank
- */
-function updateCheckboxHiddenField(e)
-{
-	e.target.nextElementSibling.value = e.target.checked;
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
 }
 
-function clearExternals() {
-	externalDiv.innerHTML = ""
+function safeColour(value) {
+  const components = String(value ?? "").split(",").map(part => Number(part.trim()));
+  return components.length === 3 && components.every(component => Number.isFinite(component) && component >= 0 && component <= 255)
+    ? components.map(Math.round).join(", ") : "100, 116, 139";
 }
 
-/**
- * Creates an external device and populates the values
- * @param {string} externalName
- * @param {int} externalIP
- * @param {int} externalReceivePort
- */
-function createExternal(externalBroadcast = true, externalName = "", externalIP = "", externalLoopback = false, externalReceivePort = "")
-{
-	if(externalReceivePort == "")
-	{
-		externalReceivePort = 9000;
-	}
-
-	let wrapper = document.createElement("div");
-	wrapper.className = "external";
-
-	let details = document.createElement("div");
-	details.className = "details";
-
-	let nameLabel = document.createElement("label");
-	nameLabel.textContent = "Name";
-	let nameField = document.createElement("input");
-	nameField.name="externalName[]";
-	nameField.required = true;
-	nameField.value = externalName;
-	nameLabel.appendChild(nameField);
-	details.appendChild(nameLabel);
-
-	let ipLabel = document.createElement("label");
-	ipLabel.textContent = "IP Address";
-	let ipField = document.createElement("input");
-	ipField.name="externalIP[]";
-	ipField.required = true;
-	ipField.value = externalIP;
-	ipField.addEventListener("input", ipAddressCheck);
-	ipLabel.appendChild(ipField);
-	details.appendChild(ipLabel);
-
-	details.appendChild(createCheckboxField("externalBroadcast[]", externalBroadcast, "Receive Broadcast Messages"));
-
-	details.appendChild(createCheckboxField("externalLoopback[]", externalLoopback, "Receive Own Messages", "By default Webmixer doesn't broadcast messages back to the source IP to prevent message loops. This disables the IP check. Be careful when turning this on."));
-
-	let deviceSettingsWrap = document.createElement("div");
-	deviceSettingsWrap.className = "settings";
-
-	let deskTitle = document.createElement("h2");
-	deskTitle.textContent = "Device Connection Settings";
-	deviceSettingsWrap.appendChild(deskTitle);
-
-	let deskLabel = document.createElement("label");
-	deskLabel.textContent = "IP Address";
-	let deskField = document.createElement("input");
-	deskField.disabled = true;
-	deskField.value = ipAddress.value;
-	deskField.addEventListener("input", ipAddressCheck);
-	deskLabel.appendChild(deskField);
-	deviceSettingsWrap.appendChild(deskLabel);
-
-	let sendLabel = document.createElement("label");
-	sendLabel.textContent = "Send Port";
-	let sendField = document.createElement("input");
-	sendField.disabled = true;
-	sendField.type = "number";
-	sendField.value = oscReceivePort.value;
-	sendLabel.appendChild(sendField);
-	deviceSettingsWrap.appendChild(sendLabel);
-
-	let receiveLabel = document.createElement("label");
-	receiveLabel.textContent = "Receive Port";
-	let receiveField = document.createElement("input");
-	receiveField.name="externalReceive[]";
-	receiveField.required = true;
-	receiveField.type = "number";
-	receiveField.min = 0;
-	receiveField.max = 65353;
-	receiveField.value = externalReceivePort;
-	receiveLabel.appendChild(receiveField);
-	deviceSettingsWrap.appendChild(receiveLabel);
-
-
-	let deleteButton = document.createElement("button");
-	deleteButton.innerHTML = "&times;";
-	deleteButton.classList = "delete";
-	deleteButton.addEventListener("click", deleteExternal);
-
-	wrapper.appendChild(details);
-	wrapper.appendChild(deviceSettingsWrap);
-	wrapper.appendChild(deleteButton);
-
-	externalDiv.appendChild(wrapper);
-
-	if(externalName == "")
-	{
-		nameField.focus();
-		nameField.scrollIntoView({behavior: "smooth"});
-	}
+function levelPercentage(value) {
+  return Number.isFinite(value) ? Math.round(Math.max(0, Math.min(1, value)) * 100) : 0;
 }
 
-//Handle add external device button
-document.getElementById("addExternal").addEventListener("click", (e) => {
-	e.preventDefault();
-	createExternal();
-});
-
-/**
- * Validates that the provided string is a valid IPv4 or IPv6 Address
- * @param {string} ip
- * @returns boolean - true if provided value is a IPv4 or IPv6 address
- */
-function isIpAddress(ip)
-{
-	const ipv4Pattern =  /^(\d{1,3}\.){3}\d{1,3}$/;
-	const ipv6Pattern =  /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
-	return ipv4Pattern.test(ip) || ipv6Pattern.test(ip);
+function formatTime(timestamp) {
+  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+  if (seconds < 60) {
+    return `${seconds}s ago`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ago`;
 }
 
-/**
- * Handle input events for ip address fields to ensure the validity message is correct.
- * @param {KeyEvent} e
- */
-function ipAddressCheck(e)
-{
-	if(isIpAddress(e.target.value))
-	{
-		e.target.setCustomValidity("");
-	}
-	else
-	{
-		e.target.setCustomValidity("Please enter a valid IP address");
-	}
+function formatLevel(level) {
+  if (!Number.isFinite(level)) {
+    return "—";
+  }
+  return `${levelPercentage(level)}%`;
 }
 
-deskIP.addEventListener("input", ipAddressCheck);
-
-/**
- * Submit the config form via fetch instead of a real page navigation, so the
- * currently selected tab isn't lost when the server re-sends admin.html.
- * @returns {Promise<boolean>} true if the settings were saved, false if the
- * form was invalid or the page is redirecting to a new port.
- */
-async function submitConfigForm()
-{
-	if(!configForm.checkValidity())
-	{
-		configForm.reportValidity();
-		return false;
-	}
-
-	const response = await fetch(configForm.action, {
-		method: "POST",
-		body: new URLSearchParams(new FormData(configForm))
-	});
-
-	//if the server port changed, it sends a redirect script since it's now listening on a different port
-	const text = await response.text();
-	const redirect = text.match(/document\.location\.href="([^"]+)"/);
-	if(redirect)
-	{
-		document.location.href = redirect[1];
-		return false;
-	}
-
-	return true;
+function formatPan(pan) {
+  if (!Number.isFinite(pan)) {
+    return "";
+  }
+  if (pan === 0) {
+    return "C";
+  }
+  return pan < 0 ? `L ${Math.abs(Math.round(pan * 100))}` : `R ${Math.round(pan * 100)}`;
 }
 
-configForm.addEventListener("submit", async (e) => {
-	e.preventDefault();
-	await submitConfigForm();
-});
-
-/**
- * Create a checkbox field that sends a value if it is checked or not checked.
- * By default checkbox fields don't send a value when unchecked.
- * @param {string} name - the field name
- * @param {boolean} checked - whether or not the field should be checked
- * @param {string} label - the label for the field
- * @param {string} tooltip - optional tooltip for the field
- * @param {string} labelClass - optional class for the label
- * @returns {DomElement} - the checkbox field element
- */
-function createCheckboxField(name, checked, label, tooltip = "", labelClass = "")
-{
-	const checkboxField = document.createElement("input");
-	const checkboxLabel = document.createElement("label");
-
-	if (labelClass != "")
-	{
-		checkboxLabel.className = labelClass;
-	}
-
-	const checkboxText = document.createTextNode(label);
-	const checkboxHiddenField = document.createElement("input");
-
-	checkboxHiddenField.type = "hidden";
-	checkboxHiddenField.name = name;
-	checkboxHiddenField.value = checked;
-
-	checkboxField.type = "checkbox";
-	checkboxField.checked = checked;
-	checkboxField.addEventListener("change", updateCheckboxHiddenField);
-
-	checkboxLabel.appendChild(checkboxField);
-	checkboxLabel.appendChild(checkboxHiddenField);
-	checkboxLabel.appendChild(checkboxText);
-
-	if(tooltip != "")
-	{
-		const tooltipWrap = document.createElement("span");
-		tooltipWrap.innerHTML = "i";
-		tooltipWrap.className = "tooltip";
-		tooltipWrap.title = tooltip;
-		checkboxLabel.appendChild(tooltipWrap);
-	}
-
-
-	return checkboxLabel;
+function formatClock(timestamp) {
+  return new Date(timestamp).toLocaleTimeString();
 }
 
-let iconTarget = null;
-function iconClick(e)
-{
-	e.preventDefault();
-	iconTarget = e.target;
-	iconDialog.showModal();
+function restoreFoldable(el, storageKey) {
+  el.open = foldableOpen.get(storageKey) ?? false;
 }
 
-iconDialog.addEventListener("click", (e) => {
-	e.preventDefault();
-	if(e.target.src)
-	{
-		let src = e.target.src;
+const boundFoldables = new WeakSet();
 
-		//is the src the blank svg?
-		if(src.startsWith("data"))
-		{
-			src = "";
-		}
-		else
-		{
-			//remove hostname from the src
-			src = e.target.src.substring(window.location.origin.length);
-		}
-		iconTarget.src = e.target.src;
-		iconTarget.nextElementSibling.value = src;
-	}
-	iconDialog.close();
-})
+function bindFoldable(el, storageKey) {
+  restoreFoldable(el, storageKey);
 
-/**
- * Add an icon picker to a dom element
- * @param {DomElement} element - the element to add the picker to
- * @param {string} name - the input name of the hidden field
- * @param {string} icon - the icon src to set to
- */
-function addIconPicker(element, name, icon)
-{
-	let iconImg = document.createElement("img");
-	iconImg.src = icon == "" ? "data:image/svg+xml;charset=utf8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%3E%3C/svg%3E" : icon;
-	iconImg.className = "icon";
-	iconImg.width = 44;
-	iconImg.height = 44;
-	iconImg.addEventListener("click", iconClick);
-	element.appendChild(iconImg);
+  if (boundFoldables.has(el)) {
+    return;
+  }
 
-	let iconHidden = document.createElement("input");
-	iconHidden.type = "hidden";
-	iconHidden.value = icon;
-	iconHidden.name = name;
-	element.appendChild(iconHidden);
+  boundFoldables.add(el);
+  el.addEventListener("toggle", () => {
+    foldableOpen.set(storageKey, el.open);
+  });
 }
 
-/**
- * Create an Auxilary
- * @param {int} number - the aux number
- * @param {boolean} enabled - wether or not the auxilary is enabled
- * @param {string} name - the name of the auxilary
- * @param {string} colour - the colour of the auxilary
- * @param {string} icon - the icon for the auxilary
- */
-function createAux(number, enabled, name, colour, icon)
-{
-	let auxWrap = document.createElement("div");
+function coalesceClientLog(log) {
+  if (!log?.length) {
+    return [];
+  }
 
-	let channelNumberLabel = document.createElement("label");
-	channelNumberLabel.className = "listNumber";
-	channelNumberLabel.innerHTML = String(number).padStart(2, "0");
-	auxWrap.appendChild(channelNumberLabel);
+  const coalesced = [];
 
-	auxWrap.appendChild(createCheckboxField("auxEnabled[]", enabled, "", "", "enabled"));
+  for (const entry of log) {
+    const previous = coalesced[coalesced.length - 1];
+    const sameGroup =
+      previous &&
+      previous.type === entry.type &&
+      previous.aux === entry.aux &&
+      (entry.type === "aux" || previous.channel === entry.channel);
 
-	let auxNameLabel = document.createElement("label");
-	let auxName = document.createElement("input");
-	auxName.name = "auxName[]";
-	auxName.value = name;
-	auxNameLabel.appendChild(auxName);
-	auxWrap.appendChild(auxNameLabel);
+    if (sameGroup) {
+      previous.at = entry.at;
+      previous.toValue = entry.value;
+      previous.count += 1;
+      continue;
+    }
 
-	let auxColourLabel = document.createElement("label");
-	let auxColour = document.createElement("input");
-	auxColour.name = "auxColour[]";
-	auxColour.value = colour;
-	auxColour.type = "color";
-	auxColourLabel.appendChild(auxColour);
-	auxWrap.appendChild(auxColourLabel);
+    coalesced.push({
+      ...entry,
+      fromValue:
+        entry.previousValue != null ? entry.previousValue : entry.value,
+      toValue: entry.value,
+      count: 1,
+    });
+  }
 
-	addIconPicker(auxWrap, "auxIcon[]", icon);
-
-	auxiliaries.appendChild(auxWrap);
+  return coalesced.reverse();
 }
 
-function moveup(e)
-{
-	e.preventDefault();
-
-	let currentOrder =  parseInt(getComputedStyle(e.target.parentNode).order);
-	if(currentOrder == 1)
-	{
-		return;
-	}
-
-	for(let channel of channels.childNodes)
-	{
-		let channelOrder =  parseInt(getComputedStyle(channel).order);
-		if(channelOrder == currentOrder - 1)
-		{
-			channel.style.order = channelOrder + 1;
-			channel.querySelector('input[name="channelOrder[]"]').value = channelOrder + 1;
-			break;
-		}
-	}
-
-	e.target.parentNode.style.order = currentOrder - 1;
-	e.target.parentNode.querySelector('input[name="channelOrder[]"]').value = currentOrder - 1;
-
-	ensureValidOrder(channels.childNodes, "channelOrder[]");
+function formatLogValue(type, value) {
+  if (type === "level") {
+    return formatLevel(value);
+  }
+  if (type === "pan") {
+    return formatPan(value) || "C";
+  }
+  return escapeHtml(value);
 }
 
-function movedown(e)
-{
-	e.preventDefault();
+function formatLogEntryText(entry) {
+  const auxName = escapeHtml(entry.auxLabel || `AUX ${entry.aux}`);
+  const channelName = escapeHtml(entry.channelLabel || `Ch ${entry.channel}`);
 
-	let currentOrder =  parseInt(getComputedStyle(e.target.parentNode).order);
-	if(currentOrder == channels.childNodes.length)
-	{
-		return;
-	}
+  if (entry.type === "aux") {
+    return `<strong>${auxName}</strong>`;
+  }
 
-	for(let channel of channels.childNodes)
-	{
-		let channelOrder =  parseInt(getComputedStyle(channel).order);
-		if(channelOrder == currentOrder + 1)
-		{
-			channel.style.order = channelOrder - 1;
-			channel.querySelector('input[name="channelOrder[]"]').value = channelOrder - 1;
-			break;
-		}
-	}
+  const fromValue = entry.fromValue;
+  const toValue = entry.toValue ?? entry.value;
+  const hasRange =
+    fromValue != null && Math.abs(fromValue - toValue) > 0.005;
 
-	e.target.parentNode.style.order = currentOrder + 1;
+  const changed = hasRange
+    ? `${formatLogValue(entry.type, fromValue)} → ${formatLogValue(entry.type, toValue)}`
+    : formatLogValue(entry.type, toValue);
 
-	e.target.parentNode.querySelector('input[name="channelOrder[]"]').value = currentOrder + 1;
+  const suffix =
+    entry.count > 1 && !hasRange
+      ? `<span class="log-count">${entry.count} changes</span>`
+      : "";
 
-	ensureValidOrder(channels.childNodes, "channelOrder[]");
+  if (entry.type === "level") {
+    return `<strong>${channelName}</strong> · ${changed} · ${auxName}${suffix}`;
+  }
+
+  return `<strong>${channelName}</strong> · ${changed} · ${auxName}${suffix}`;
 }
 
-/**
- * Create a Channel
- * @param {int} number - the channel number
- * @param {boolean} enabled - whether or not the channel is enabled
- * @param {string} name - the name of the channel
- * @param {integer} order - the position of the channel
- * @param {string} icon - the icon for the channel
- * @param {string} title - the section title
- */
-function createChannel(number, enabled, name, order, icon="", title="")
-{
-	let channelWrap = document.createElement("div");
-	channelWrap.style.order = order;
+function renderClientLog(log) {
+  const entries = coalesceClientLog(log);
 
-	let channelNumberLabel = document.createElement("label");
-	channelNumberLabel.className = "listNumber";
-	channelNumberLabel.innerHTML = String(number).padStart(2, "0");
-	channelWrap.appendChild(channelNumberLabel);
+  if (!entries.length) {
+    return '<p class="muted">No changes yet.</p>';
+  }
 
-	let sectionTitleLabel = document.createElement("label");
-
-	let sectionTitle = document.createElement("input");
-	sectionTitle.name = "sectionTitle[]";
-	sectionTitle.placeholder = "Section Title";
-	sectionTitle.value = title;
-	sectionTitleLabel.appendChild(sectionTitle);
-	channelWrap.appendChild(sectionTitleLabel);
-
-	//channelWrap.draggable = true;
-	//channelWrap.droppable = true;
-
-	channelWrap.appendChild(createCheckboxField("channelEnabled[]", enabled, "", "", "enabled"));
-
-	let channelNameLabel = document.createElement("label");
-	let channelName = document.createElement("input");
-	channelName.name = "channelName[]";
-	channelName.value = name;
-	channelNameLabel.appendChild(channelName);
-	channelWrap.appendChild(channelNameLabel);
-
-	addIconPicker(channelWrap, "channelIcon[]", icon);
-
-	let moveUp = document.createElement("button");
-	moveUp.className = "up";
-	moveUp.addEventListener("click", moveup);
-	channelWrap.appendChild(moveUp);
-
-	let moveDown = document.createElement("button");
-	moveDown.className = "down";
-	moveDown.addEventListener("click", movedown);
-	channelWrap.appendChild(moveDown);
-
-	let orderInput = document.createElement("input");
-	orderInput.type = "hidden";
-	orderInput.name = "channelOrder[]";
-	orderInput.value = order;
-	channelWrap.appendChild(orderInput);
-
-	channels.appendChild(channelWrap);
-
-	//makeDraggable(channelWrap);
+  return `<ol class="client-log">
+    ${entries
+      .map(
+        (entry) => `<li class="log-entry log-entry-${["aux", "level", "pan"].includes(entry.type) ? entry.type : "unknown"}">
+          <span class="log-icon-wrap">${logIcons[entry.type] || ""}</span>
+          <time>${escapeHtml(formatClock(entry.at))}</time>
+          <span class="log-text">${formatLogEntryText(entry)}</span>
+        </li>`,
+      )
+      .join("")}
+  </ol>`;
 }
 
-/**
- * Find the enable checkboxes for the list a selection button belongs to. Each
- * pair of buttons sits in a .button-row inside the same <section> as the list
- * it controls.
- * @param {DomElement} button - the clicked selection button
- * @returns {NodeListOf<HTMLInputElement>}
- */
-function selectionCheckboxes(button)
-{
-	return button.closest("section").querySelectorAll('label.enabled > input[type="checkbox"]');
-}
+function renderClientLevels(levels) {
+  if (!levels || levels.length === 0) {
+    return '<p class="muted">No AUX selected yet.</p>';
+  }
 
-/**
- * Toggle a list's enable checkboxes: if every box is already checked, uncheck
- * them all, otherwise check them all.
- * @param {MouseEvent} e
- */
-function toggleSelection(e)
-{
-	e.preventDefault();
+  const activeLevels = levels.filter((entry) => entry.level != null);
+  if (activeLevels.length === 0) {
+    return '<p class="muted">Waiting for desk values…</p>';
+  }
 
-	let checkboxes = selectionCheckboxes(this);
-	let allChecked = [...checkboxes].every((checkbox) => checkbox.checked);
-
-	for(let checkbox of checkboxes)
-	{
-		checkbox.checked = !allChecked;
-		checkbox.dispatchEvent(new Event("change"));
-	}
-}
-
-/**
- * Flip every enable checkbox in a list.
- * @param {MouseEvent} e
- */
-function invertSelection(e)
-{
-	e.preventDefault();
-
-	for(let checkbox of selectionCheckboxes(this))
-	{
-		checkbox.checked = !checkbox.checked;
-		checkbox.dispatchEvent(new Event("change"));
-	}
-}
-
-for(let button of document.querySelectorAll(".toggle-selection"))
-{
-	button.addEventListener("click", toggleSelection);
-}
-for(let button of document.querySelectorAll(".invert-selection"))
-{
-	button.addEventListener("click", invertSelection);
-}
-
-/*let dropTarget = undefined;
-let dragged = undefined;
-function makeDraggable(target)
-{
-	target.addEventListener("dragstart", e => {
-		dragged = e.target;
-		dragged.classList.add("dragging");
-		e.dataTransfer.setData("text/plain", "data");
-	});
-
-	target.addEventListener("dragover", e => {
-		e.preventDefault();
-		dropTarget = e.target.closest("[draggable]");
-		dropTarget.classList.add("dragTarget");
-	});
-
-	target.addEventListener("dragleave", e => {
-		e.preventDefault();
-		dropTarget.classList.remove("dragTarget");
-	});
-
-	target.addEventListener("drop", e => {
-		e.preventDefault();
-		dropTarget.classList.remove("dragTarget");
-
-		dropTarget.before(dragged);
-
-		dragged.classList.remove("dragging");
-
-		dragged = undefined;
-		dropTarget = undefined;
-	});
-}*/
-
-//load current config and populate fields
-function loadConfig()
-{
-	fetch("/config")
-		.then((response) => response.json())
-		.then((json) => {
-
-			let deskPort = 9000;
-			if(json.desk.port != "")
-			{
-				deskPort = json.desk.port;
-			}
-
-			ipAddress.value = json.server.ip;
-			serverPort.value = json.server.port;
-			oscReceivePort.value = json.osc.port;
-			deskSendPort.value = json.osc.port;
-			deskIP.value = json.desk.ip == "" ? json.server.ip.replace(/\.\d+$/, "") + "." : json.desk.ip;
-			deskReceivePort.value = deskPort;
-			debug.checked = json.debug == true;
-	
-			clearExternals();
-			for(let external of json.externalDevices)
-			{
-				createExternal(external.broadcast, external.name, external.ip, external.loopback, external.port);
-			}
-		});
-}
-loadConfig();
-
-function fetchAux()
-{
-	fetch("/aux")
-		.then((response) => response.json())
-		.then((json) => {
-
-			if(json.length == 0)
-			{
-				auxiliaries.innerHTML = '<p class="notice">No Auxiliaries Loaded</p>';
-				setTimeout(fetchAux, 5000); //try again later
-				return;
-			}
-
-			auxiliaries.innerHTML = "";
-
-			for(let [index, aux] of json.entries())
-			{
-				createAux(index + 1, aux.enabled, aux.name, aux.colour, aux.icon);
-			}
-		});
-}
-fetchAux();
-
-function fetchChannels()
-{
-	fetch("/channels")
-		.then((response) => response.json())
-		.then((json) => {
-
-			if(json.length == 0)
-			{
-				channels.innerHTML = '<p class="notice">No Channels Loaded</p>';
-				setTimeout(fetchChannels, 5000); //try again later
-				return;
-			}
-
-			channels.innerHTML = "";
-
-			for(let [index, channel] of json.entries())
-			{
-				createChannel(index + 1, channel.enabled, channel.name, channel.order, channel.icon, channel.title);
-			}
-
-			ensureValidOrder(channels.childNodes, "channelOrder[]");
-		});
-}
-fetchChannels();
-
-/**
- * Make sure the order of node elements are valid.
- * This is only necessary if the order gets out of wack. It should only get messed up if the channel list grows or shrinks.
- * @param {DOMElement} nodes - the dom nodes to check
- * @param {string} hiddenName - the name for hidden field that stores the order value
- */
-function ensureValidOrder(nodes, hiddenName)
-{
-	//create an array of dom elements and the current order value
-	let toSort = [];
-	for(let node of nodes)
-	{
-		toSort.push({
-			elm: node,
-			order: parseInt(getComputedStyle(node).order)
-		})
-	}
-
-	//sort the array by the order
-	toSort.sort((a, b) => a.order > b.order ? 1 : -1);
-
-	//loop through each element and update the order with a valid value
-	for(let [index, node] of toSort.entries())
-	{
-		node.elm.style.order = index + 1;
-		node.elm.querySelector('input[name="' + hiddenName + '"]').value = index + 1;
-	}
-}
-
-function navClick(e)
-{
-	hideSections();
-	document.getElementById(e.target.hash.substr(1) + "-content").classList.add("show");
-	e.target.classList.add("selected");
-}
-
-function hideSections()
-{
-	for(let tab of document.querySelectorAll("nav .selected"))
-	{
-		tab.classList.remove("selected");
-	}
-	for(let section of document.querySelectorAll("section.show"))
-	{
-		section.classList.remove("show");
-	}
-}
-
-let navTabs = document.querySelectorAll("nav a");
-for(let tab of navTabs)
-{
-	tab.addEventListener("click", navClick);
-}
-
-//load a specific tab if a hash exists
-if(document.location.hash != "")
-{
-	document.querySelector('nav a[href="' + document.location.hash + '"]').dispatchEvent(new Event("click"));
-}
-
-
-
-/**
- * Callback for when socket receives a message
- * @param SocketEvent e - the message socket event
- */
-function onMessage(e)
-{
-	let json;
-	try
-	{
-		json = JSON.parse(e.data);
-	}
-	catch(err)
-	{
-		return;
-	}
-
-	//console.log(json);
-
-	if(!json.address)
-	{
-		return;
-	}
-
-	//update channel names
-	let channelNameMatch = json.address.match(/^\/Input_Channels\/([0-9]+)\/Channel_Input\/name$/);
-	if(channelNameMatch !== null)
-	{
-		const row = channels.childNodes[channelNameMatch[1]-1];
-		if(!row)
-		{
-			return;
-		}
-		const input = row.querySelector('input[name="channelName[]"]')
-		if(!input)
-		{
-			return;
-		}
-		input.value = json.args[0];
-	}
-
-	//update Aux names
-	let auxNameMatch = json.address.match(/^\/Aux_Outputs\/([0-9]+)\/Buss_Trim\/name$/);
-	if(auxNameMatch !== null)
-	{
-		const row = auxiliaries.childNodes[auxNameMatch[1]-1];
-		if(!row)
-		{
-			return;
-		}
-		const input = row.querySelector('input[name="auxName[]"]')
-		if(!input)
-		{
-			return;
-		}
-		input.value = json.args[0];
-	}
-}
-
-const WEBSOCKET_TIMEOUT = 2000;
-
-/**
- * When socket is connected
- */
-function onOpen()
-{
-	clearTimeout(timeout);
-
-	document.body.classList.remove("disconnected");
-
-	/*
-	Sockets close and open again when the config is saved. We want to make sure we have the latest when the socket is opened.
-	TODO: This isn't the most elegant solution and it might be better to save & reload the config using the websocket.
-	*/
-	loadConfig();
-	fetchAux();
-	fetchChannels();
-	
-}
-
-/**
- * When a socket connection fails
- */
-function noConnection()
-{
-	document.body.classList.add("disconnected");
-
-	clearTimeout(timeout);
-	timeout = setTimeout(startWebsocket, WEBSOCKET_TIMEOUT);
-}
-
-/**
- * Start the connection to the server
- */
-function startWebsocket()
-{
-	if(ws)
-	{
-		ws.close();
-	}
-	ws = new WebSocket("ws://" + document.location.host);
-	ws.onopen = onOpen;
-	ws.onmessage = onMessage;
-	ws.onclose = noConnection;
-	ws.onerror = noConnection;
-
-	//retry connection in 2 seconds
-	clearTimeout(timeout);
-	timeout = setTimeout(startWebsocket, WEBSOCKET_TIMEOUT);
-}
-
-
-startWebsocket();
-
-
-function refreshPresetList() {
-    fetch('/api/presets')
-        .then(res => {
-            if (!res.ok) throw new Error('Network response was not ok');
-            return res.json();
+  return `<table class="client-levels">
+    <thead>
+      <tr>
+        <th>Channel</th>
+        <th>Label</th>
+        <th>Level</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      ${activeLevels
+        .map((entry) => {
+          const panText = formatPan(entry.pan);
+          return `<tr>
+            <td>${escapeHtml(entry.channel)}</td>
+            <td>${escapeHtml(entry.label || "—")}</td>
+            <td>${formatLevel(entry.level)}${panText ? ` · ${panText}` : ""}</td>
+            <td class="level-cell">
+              <div class="level-bar">
+                <div class="level-bar-fill" style="width: ${levelPercentage(entry.level)}%"></div>
+              </div>
+            </td>
+          </tr>`;
         })
-        .then(presets => {
-            const listContainer = document.getElementById('preset-list');
-
-            if (!presets || presets.length === 0) {
-                listContainer.innerHTML = '<p class="notice">No presets found</p>';
-                return;
-            }
-
-            listContainer.innerHTML = presets.map(p => {
-                const date = new Date(p.lastChanged);
-                const dateString = date.toLocaleDateString() + ', ' + 
-                                 date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-                return `
-                    <div class="preset-item" data-id="${p.uuid}">
-                        <div class="preset-info">
-                            <span class="name">${p.name}</span>
-                            <span class="date">${dateString}</span>
-                        </div>
-                        <div class="preset-actions">
-                            <button type="button" class="btn-load" onclick="loadPreset(event)">Load</button>
-                            <button type="button" class="btn-delete" onclick="deletePreset(event)">Delete</button>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        })
-        .catch(err => {
-            console.error("Failed to refresh presets:", err);
-        });
+        .join("")}
+    </tbody>
+  </table>`;
 }
-refreshPresetList()
 
-document.getElementById("refresh-presets").addEventListener("click", async (e) => {
-	e.preventDefault()
-	refreshPresetList();
+function escapeClientName(value) {
+  return escapeHtml(value);
+}
+function renderClientCard(client, disconnected = false) {
+  const auxName =
+    client.auxLabel ||
+    (client.aux != null ? `AUX ${client.aux}` : "No AUX selected");
+  const auxColour = client.auxColour
+    ? `style="--client-tint: ${safeColour(client.auxColour)}"`
+    : "";
+  const statusText = disconnected
+    ? `Disconnected ${formatTime(client.disconnectedAt)}`
+    : `Active ${formatTime(client.lastActivity)}`;
+
+  return `<article class="client-card${disconnected ? " client-card-disconnected" : ""}" data-client-id="${escapeHtml(client.id)}" ${auxColour}>
+    <div class="client-header">
+      <div>
+        <strong>${escapeClientName(client.username || `Client ${client.id}`)}</strong>
+        <span class="muted">${client.username ? `Client ${escapeHtml(client.id)} · ` : ""}${escapeHtml(client.address || "Unknown address")}</span>
+      </div>
+      <div class="client-meta">
+        <span class="client-aux">${escapeHtml(auxName)}</span>
+        <span class="muted">${statusText}</span>
+      </div>
+    </div>
+    <details class="foldable client-fold" data-section="mix">
+      <summary>Current mix</summary>
+      <div class="foldable-body">
+        ${renderClientLevels(client.levels)}
+      </div>
+    </details>
+    <details class="foldable client-fold" data-section="log">
+      <summary>Changelog (${coalesceClientLog(client.log || []).length})</summary>
+      <div class="foldable-body">
+        ${renderClientLog(client.log)}
+      </div>
+    </details>
+  </article>`;
+}
+
+function bindClientFoldables(container) {
+  container.querySelectorAll(".client-fold").forEach((el) => {
+    const clientId = el.closest(".client-card")?.dataset.clientId;
+    const section = el.dataset.section;
+    bindFoldable(el, `adminClientFold-${clientId}-${section}`);
+  });
+}
+
+function renderClients(connected, disconnected) {
+  noClientsEl.hidden = connected.length > 0;
+  clientsListEl.innerHTML = connected.map((client) => renderClientCard(client)).join("");
+  bindClientFoldables(clientsListEl);
+
+  if (!disconnected.length) {
+    disconnectedSectionEl.hidden = true;
+    disconnectedClientsListEl.innerHTML = "";
+    return;
+  }
+
+  disconnectedSectionEl.hidden = false;
+  disconnectedClientsListEl.innerHTML = disconnected
+    .map((client) => renderClientCard(client, true))
+    .join("");
+  bindClientFoldables(disconnectedClientsListEl);
+}
+
+function getAuxLabel(aux) {
+  return aux.label || `AUX ${aux.channel}`;
+}
+
+function renderAuxMenu() {
+  const signature = JSON.stringify(auxOptions.map(aux => [aux.channel, getAuxLabel(aux)]));
+  if (auxMenuEl.dataset.options !== signature) {
+    auxMenuEl.replaceChildren();
+    for (const aux of auxOptions) {
+      const option = document.createElement("option");
+      option.value = String(aux.channel); option.textContent = getAuxLabel(aux);
+      auxMenuEl.appendChild(option);
+    }
+    auxMenuEl.dataset.options = signature;
+  }
+  auxMenuEl.value = selectedAux || "";
+  auxMenuEl.disabled = !auxOptions.length;
+}
+
+function renderLiveMixChannels(levels, stereo) {
+  if (!levels) {
+    liveMixChannelsEl.innerHTML = '<p class="muted">Waiting for desk values…</p>';
+    return;
+  }
+
+  const visibleLevels = levels.filter((entry) => entry.level != null);
+  if (!visibleLevels.length) {
+    liveMixChannelsEl.innerHTML = '<p class="muted">Waiting for desk values…</p>';
+    return;
+  }
+
+  liveMixChannelsEl.innerHTML = visibleLevels
+    .map((entry) => {
+      const levelPercent = levelPercentage(entry.level);
+      const panStyle =
+        Number.isFinite(entry.pan) ? `${Math.round((Math.max(-1, Math.min(1, entry.pan)) + 1) * 50)}%` : "50%";
+
+      return `<div class="live-channel">
+        <label class="mixer-fader volume" style="--value: ${levelPercent}%">
+          <span>${escapeHtml(entry.label || `Ch ${entry.channel}`)}</span>
+          <span class="level-readout">${levelPercent}%</span>
+          <div class="fader-track" role="meter" aria-label="Send level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${levelPercent}"><div class="fader-fill"></div><div class="fader-thumb"></div></div>
+        </label>
+        ${
+          stereo
+            ? `<label class="mixer-fader pan-display${showPan ? "" : " hidden"}" style="--value: ${panStyle}">
+          <span>${escapeHtml(entry.label || `Ch ${entry.channel}`)}</span>
+          <div class="pan-track"></div>
+          <span class="pan-readout">${formatPan(entry.pan)}</span>
+        </label>`
+            : ""
+        }
+      </div>`;
+    })
+    .join("");
+}
+
+function renderLiveMix() {
+  const aux = auxOptions.find(
+    (entry) => String(entry.channel) === String(selectedAux),
+  );
+
+  if (!aux) {
+    liveMixFoldEl.hidden = true;
+    liveMixHintEl.hidden = false;
+    return;
+  }
+
+  liveMixHintEl.hidden = true;
+  liveMixFoldEl.hidden = false;
+  restoreFoldable(liveMixFoldEl, "adminLiveMixFold");
+  liveMixTitleEl.textContent = getAuxLabel(aux);
+  liveMixSummaryEl.textContent = `Live sends · ${getAuxLabel(aux)}`;
+  document.body.style.setProperty("--live-tint", safeColour(aux.colour));
+
+  panToggleLabelEl.hidden = !aux.stereo;
+  panToggleEl.checked = showPan && aux.stereo;
+
+  renderLiveMixChannels(mixLevels[aux.channel], aux.stereo);
+}
+
+function selectAux(channel) {
+  selectedAux = String(channel);
+  sessionStorage.setItem("adminSelectedAux", selectedAux);
+  renderAuxMenu();
+  renderLiveMix();
+  if (currentPage === "live-mix") void loadStatus();
+}
+
+function renderStatus(data) {
+  loadingEl.hidden = true;
+  errorEl.hidden = true;
+  contentEl.hidden = false;
+  setAdminConnection(true, data.loaded);
+  const deskStatus = document.getElementById("deskStatus");
+  deskStatus.textContent = data.loaded ? "Desk discovered. Mix values load when an AUX is selected." : "Waiting for desk discovery. Check the connection in Desk settings.";
+  const deskSnapshot = document.getElementById("deskSnapshot");
+  deskSnapshot.hidden = data.snapshot == null || data.snapshot === "";
+  deskSnapshot.textContent = deskSnapshot.hidden ? "" : "Snapshot: " + String(data.snapshot);
+
+  currentUrl = data.url;
+  connectionsEl.textContent = String(data.connections);
+  authStatusEl.textContent = data.adminPasswordEnabled ? "Enabled" : "Disabled";
+  renderAdminPassword(!!data.adminPasswordEnabled);
+  auxCountEl.textContent = String(data.aux.length);
+  channelCountEl.textContent = String(data.channels.length);
+
+  auxOptions = data.aux || [];
+  mixLevels = data.mixLevels || {};
+
+  if (
+    selectedAux &&
+    !auxOptions.some((entry) => String(entry.channel) === String(selectedAux))
+  ) {
+    selectedAux = null;
+    sessionStorage.removeItem("adminSelectedAux");
+  }
+
+  if (!selectedAux && auxOptions.length) {
+    selectedAux = String(auxOptions[0].channel);
+    sessionStorage.setItem("adminSelectedAux", selectedAux);
+  }
+
+  renderAuxMenu();
+  renderLiveMix();
+
+  renderClients(data.clients || [], data.disconnectedClients || []);
+  document.dispatchEvent(new CustomEvent("admin-mixer-config", { detail: { channels: data.channels, aux: data.aux } }));
+
+  mixerUrlEl.href = data.url;
+  mixerUrlEl.textContent = data.url;
+  qrCodeEl.src = data.qr;
+
+  auxTableEl.innerHTML = data.aux
+    .map(
+      (aux) => `<tr>
+        <td><span class="colour-dot" style="background: rgb(${safeColour(aux.colour)})"></span>${escapeHtml(aux.channel)}</td>
+        <td>${escapeHtml(aux.label || "—")}</td>
+        <td>${aux.stereo ? "Yes" : "No"}</td>
+      </tr>`,
+    )
+    .join("");
+
+  channelTableEl.innerHTML = data.channels
+    .map(
+      (channel) => `<tr>
+        <td>${escapeHtml(channel.channel)}</td>
+        <td>${escapeHtml(channel.label || "—")}</td>
+      </tr>`,
+    )
+    .join("");
+}
+
+async function loadStatus() {
+  if (statusLoading) return;
+  statusLoading = true;
+  try {
+    const query = currentPage === "live-mix" && selectedAux ? "?aux=" + encodeURIComponent(selectedAux) : "";
+    const response = await adminFetch("/api/admin/status" + query);
+    if (!response.ok) {
+      throw new Error("Request failed");
+    }
+    renderStatus(await response.json());
+  } catch {
+    loadingEl.hidden = true;
+    contentEl.hidden = true;
+    errorEl.hidden = false;
+    setAdminConnection(false);
+  } finally {
+    statusLoading = false;
+  }
+}
+
+copyUrlBtn.addEventListener("click", async () => {
+  if (!currentUrl) {
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(currentUrl);
+    copyUrlBtn.innerHTML = appIcon("check") + " Copied";
+    setTimeout(() => {
+      copyUrlBtn.innerHTML = appIcon("copy") + " Copy";
+    }, 1500);
+  } catch {
+    copyUrlBtn.innerHTML = appIcon("x") + " Copy failed";
+    setTimeout(() => {
+      copyUrlBtn.innerHTML = appIcon("copy") + " Copy";
+    }, 1500);
+  }
 });
 
+auxMenuEl.addEventListener("change", () => selectAux(auxMenuEl.value));
 
-async function savePreset() {
-	const nameInput = document.getElementById("new-preset-name");
-	const name = nameInput.value.trim()
+panToggleEl.addEventListener("change", () => {
+  showPan = panToggleEl.checked;
+  sessionStorage.setItem("adminShowPan", String(showPan));
+  renderLiveMix();
+});
 
-	if (!name) {
-		alert("Please enter a name for the preset.");
-		return;
-	}
+sidebarNavEl.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-page]");
+  if (!button) {
+    return;
+  }
+  showPage(button.dataset.page);
+});
 
-	try {
-		// persist the current settings first so the preset captures the latest
-		// edits, not just whatever was last saved
-		if (!(await submitConfigForm())) {
-			return;
-		}
+sidebarToggleEl.addEventListener("click", () => {
+  const open = document.body.classList.toggle("sidebar-open");
+  document.getElementById("sidebarBackdrop").hidden = !open;
+  sidebarToggleEl.setAttribute("aria-expanded", String(open));
+});
 
-		const response = await fetch('/api/presets/save-current-state', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ name })
-		});
+window.addEventListener("hashchange", () => {
+  const page = window.location.hash.replace("#", "");
+  if (page && page !== currentPage) {
+    showPage(page);
+  }
+});
 
-		const data = await response.json();
+showPage(currentPage);
+bindFoldable(liveMixFoldEl, "adminLiveMixFold");
+loadStatus();
+setInterval(loadStatus, 2000);
+window.addEventListener("pageshow", event => {
+  if (event.persisted) { contentEl.hidden = true; void loadStatus(); }
+});
 
-		if (!response.ok) {
-			throw new Error(data.message || "Something went wrong");
-		}
-
-		// Success Path
-		nameInput.value = '';
-		refreshPresetList();
-		console.log("Success:", data.message);
-
-	} catch (err) {
-		// Catches the 'throw' above OR network/parsing failures
-		alert(err.message);
-		console.error("Save error:", err);
-	}
+function setAdminConnection(connected, deskReady = true) {
+  const status = document.getElementById("adminConnection");
+  status.classList.toggle("online", connected && deskReady);
+  status.lastElementChild.textContent = connected ? (deskReady ? "Connected" : "Waiting for desk…") : "Reconnecting…";
 }
-
-document.getElementById("save-preset").addEventListener("click", async (e) => {
-	e.preventDefault();
-	await savePreset();
-})
-
-async function loadPreset(event) {
-	event.preventDefault()
-
-	const presetItem = event.target.closest('.preset-item');
-	const uuid = presetItem.getAttribute('data-id');
-	const presetName = presetItem.querySelector('.name').textContent;
-
-	if (confirm(`Load preset "${presetName}"?`)) {
-		const response = await fetch(`/api/presets/${uuid}/load`, { method: 'POST' });
-		if (!response.ok) {
-			const data = await response.json();
-			alert(data.message);
-			return;
-		}
-
-		fetchAux();
-		fetchChannels();
-	}
+function closeAdminNavigation() {
+  document.body.classList.remove("sidebar-open");
+  document.getElementById("sidebarBackdrop").hidden = true;
+  sidebarToggleEl.setAttribute("aria-expanded", "false");
 }
-
-async function deletePreset(event) {
-	event.preventDefault()
-
-	const presetItem = event.target.closest('.preset-item');
-	const uuid = presetItem.getAttribute('data-id');
-	const presetName = presetItem.querySelector('.name').textContent;
-
-	if (confirm(`Delete preset "${presetName}"?`)) {
-		const response = await fetch(`/api/presets/${uuid}`, { method: 'DELETE' });
-		if (!response.ok) {
-			const data = await response.json();
-			alert(data.message);
-			return;
-		}
-
-		refreshPresetList();
-	}
+document.getElementById("sidebarBackdrop").addEventListener("click", closeAdminNavigation);
+document.addEventListener("keydown", event => { if (event.key === "Escape") closeAdminNavigation(); });
+const adminListView = document.getElementById("adminListView");
+const adminGridView = document.getElementById("adminGridView");
+function setAdminView(view) {
+  const grid = view === "grid";
+  document.body.classList.toggle("grid-view", grid);
+  adminListView.setAttribute("aria-pressed", String(!grid)); adminGridView.setAttribute("aria-pressed", String(grid));
 }
+adminListView.addEventListener("click", () => { localStorage.setItem("adminChannelView", "list"); setAdminView("list"); });
+adminGridView.addEventListener("click", () => { localStorage.setItem("adminChannelView", "grid"); setAdminView("grid"); });
+setAdminView(localStorage.getItem("adminChannelView") || "list");
 
+document.addEventListener("desk-settings-saved", () => { void loadStatus(); });

@@ -1,138 +1,166 @@
-# OSCWebMixer2
+# OSCWebMixer2 · Ears Mixer
 
-A rewrite of [OSCWebMixer](https://github.com/castles/OSCWebMixer) - A server that allows multiple web clients to control their own mix as well as external devices for a DiGiCo sound desk. It currently works with SD Series and Quantum consoles.
+This version combines the custom Ears Mixer interface and admin dashboard with the native OSC backend from [OSCWebMixer2](https://github.com/castles/OSCWebMixer2). It supports DiGiCo SD Series and Quantum consoles through their built-in DiGiCo iPad connection.
 
-## What makes v2 better?
+The mixer opens at `/` and the admin dashboard at `/admin`. Desk configuration is built into the dashboard under **Desk settings**.
 
-* This new version uses the same iPad connection that is built into the SD/Quantum consoles so it means you can use webmixer devices as well as the DiGiCo iPad apps at the same time. In-fact you can use multiple iPad apps simultaneously!
-* All configuration is done in a browser instead of config files
-* Auxilaries and Channels can have icons assigned to them
-* Channels can be sorted
-* Custom functionality can be added by writing some simple Plugins. There are a couple of examples of how this can be used in the plugins directory
-* Webmixer can send and receive OSC messages to custom devices. This means it can communicate with TouchOSC, Reaper etc.
-* Startup is much quicker because webmixer requests only the information it requires
-* You can group your channels to make them easier to find
-* The current snapshot name is displayed in webmixer
-* Channel and auxiliary configuration can be saved as named presets and recalled later
+## Mixer and admin features
 
-## Donate
+- List and grid channel views, compact controls and fullscreen mode.
+- Drag ordering and favourites saved per AUX on each browser/device.
+- Device usernames and a profile dialog for loading a starting template or starting fresh.
+- Admin Overview, read-only Live mix, connected/disconnected clients and activity history.
+- Admin template editing with channel ordering, per-AUX favourites, starting AUX and view.
+- An optional admin password managed through **Admin → Config**.
+- Current snapshot display, progressive loading of the selected AUX and disabled controls while values are unavailable.
 
-This project has taken considerable time to create. If you find it useful and would like further development please make a donation.
+Personal templates contain layout preferences, not fader levels. Loading a template or starting fresh does not recall a mix on the desk. Each device can adjust its layout after loading a template.
 
-[![paypal](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=VL5VBHN57FVS2&item_name=OSCWebMixer)
+Native **Desk settings** retains upstream server/desk connection setup, channel and AUX selection, shared desk presets, icons and additional OSC devices. Shared desk presets configure the available channels and AUXes; they are separate from personal starting templates. Open **Admin → Desk settings** to configure everything within the dashboard.
 
-## Screenshots
-
-<img src="https://github.com/castles/OSCWebMixer2/assets/323970/952cb304-b4f7-41b1-8308-2481bbbf6d78" width="400">
-<img src="https://github.com/castles/OSCWebMixer2/assets/323970/1e43dc8b-3995-4149-8771-3c512d14a378" width="400">
-<img src="https://github.com/castles/OSCWebMixer2/assets/323970/c60c263e-c848-4775-8e9a-59052eea2d01" width="400">
-<img src="https://github.com/castles/OSCWebMixer2/assets/323970/13b8e955-9633-490f-a321-5783e301758d" width="400">
-<img src="https://github.com/castles/OSCWebMixer2/assets/323970/06f017dd-d90e-4d81-83f3-1d85e836ecae" width="400">
-<img src="https://github.com/castles/OSCWebMixer2/assets/323970/06f017dd-d90e-4d81-83f3-1d85e836ecae" width="400">
-<img src="https://github.com/castles/OSCWebMixer2/assets/323970/51eebca5-4352-4d43-8834-e6ebd74d98e9" width="400">
-<img src="https://github.com/castles/OSCWebMixer2/assets/323970/b0deedf0-d0b1-4919-b960-50e2e6259b06" width="400">
+The v2 backend uses the same built-in iPad connection as the DiGiCo apps, allowing web clients and DiGiCo iPad apps to operate alongside one another. It caches desk responses, loads metadata before send values, paces missing-value queries and routes send updates to clients viewing the affected AUX. Custom plugins can be added in `plugins/`, and routing to devices such as TouchOSC or Reaper remains available.
 
 ## Requirements
 
-* A DiGiCo SD Series or Quantum Mixing desk.
-* A computer to run the server. Windows, macOS or Linux.
-* [GIT](https://git-scm.com/downloads/win) will need to be installed for Windows. [Node](https://nodejs.org/en/download/) must be installed. On macOS you can install node with [Homebrew](https://brew.sh/) (`brew install node`)
-* Server, Desk and other devices must all be on the same network
+- Node.js 22 or newer, and Git for installing the modified OSC dependency.
+- Windows, macOS or Linux, or Docker with Docker Compose.
+- A DiGiCo SD Series or Quantum console for a real connection. The offline demo works without a console.
+- The server computer, console and mixer devices on the same network for real use.
 
-## Admin Authentication (optional)
+## Start without a console
 
-The admin area (used to configure the server and mixing desk) is unauthenticated by default,
-matching the trusted-LAN model above. If the server may be reachable from a network you don't
-fully trust, set the following environment variables before starting the server to require HTTP
-Basic Auth on the admin area:
+Install dependencies once and start the offline demo:
 
-* `ADMIN_PASSWORD` - if set, the admin area requires Basic Auth with this password. If unset (the
-  default), the admin area remains unauthenticated.
-* `ADMIN_USER` - username to require alongside `ADMIN_PASSWORD`. Defaults to `admin`.
+```bash
+npm ci
+npm run dev
+```
 
-## Basic Setup Instructions
+Open [the mixer](http://127.0.0.1:8082/) or [the admin dashboard](http://127.0.0.1:8082/admin). The demo runs the real v2 server and its mock desk together, with 20 channels and eight AUXes. Its snapshot stays fixed by default. Press Ctrl+C to stop both processes.
 
-1. Download repository and navigate to the directory in a shell.
-2. Run `npm install` to install all the required modules.
-3. Run `npm run start` to start the server.
-4. Visit the admin URL in your browser to configure server and mixing desk. See below screenshot for mixing desk configuration.
-5. Open the server IP address on another device and start mixing.
+Normal settings are saved in `config/`, and templates/admin password data in `data/`. The demo uses its own `config/demo/` and `config/demo/data/`. On each start, it resets its connection settings to the mock and preserves its channel/AUX settings, shared presets, templates and admin password.
 
-<img width="538" height="529" alt="webmixer-external-control" src="https://github.com/user-attachments/assets/c8c01ec9-e153-4555-a19f-ef87dcff3ee5" />
+The local demo binds HTTP and UDP to loopback and does not contact a physical console. Its default ports are TCP 8082 and UDP 8012/9012. Optional environment variables:
 
-## Developing / Debugging Without a Console
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `OSC_WEBMIXER_DEV_WEB_PORT` | Demo web port | `8082` |
+| `OSC_WEBMIXER_DEV_OSC_PORT` | Server OSC listener | `8012` |
+| `OSC_WEBMIXER_DEV_DESK_PORT` | Mock desk OSC listener | `9012` |
+| `OSC_WEBMIXER_DEV_CONFIG_DIR` | Isolated demo settings directory | `config/demo` |
+| `OSC_WEBMIXER_DEV_BIND_ADDRESS` | Demo HTTP bind address | `127.0.0.1` |
+| `OSC_WEBMIXER_DEV_VERBOSE` | Set to `1` to print every mock OSC message | Off |
+| `OSC_WEBMIXER_DEV_LIVE_SNAPSHOTS` | Set to `1` to simulate a snapshot change every 15 seconds | Off |
 
-`tools/mock-desk.js` is a fake DiGiCo console. It answers the OSC queries webmixer
-sends while loading, so the server reaches its "ready" state and the whole system
-- web mixer, plugins, external device routing - can be exercised on a workbench
-with no hardware. It also prints every message the server sends, so you can see
-exactly what the web mixer is doing.
+On snapshot changes, the mixer keeps the last known fader positions visible while querying fresh values. Controls are temporarily disabled until their replies arrive. Initial loading and switching AUXes still clear unavailable values.
 
-1. In one shell, start the mock desk:
+The mock can validate discovery, browser controls, multi-client updates, queries, writes and snapshot handling. Console numbering, firmware behaviour, fader/pan response and simultaneous DiGiCo iPad operation still need checking with the actual desk before live use.
+
+## Connect a real console
+
+1. Run `npm ci`, then `npm start`.
+2. Open `http://<server-ip>/admin` and choose **Desk settings**. The server prints its URL on startup.
+3. On the console, open **Setup → External Control → DiGiCo iPad** and configure the connection to the server computer. Use the computer's network IP address, the server's OSC receive port and the desk's receive port. The default server listener is UDP 8000; the default desk listener is UDP 9000.
+4. In **Desk settings → Connection**, enter the console IP and its receive port. Set the server OSC receive port to match the console's outgoing destination port, then save.
+5. Select the channels and AUXes that mixer clients should see. Save any shared desk presets you need.
+6. Return to `/admin` for the mixer URL/QR code, then open that URL on phones or tablets and select an AUX.
+
+<img width="538" height="529" alt="DiGiCo iPad external control setup" src="https://github.com/user-attachments/assets/c8c01ec9-e153-4555-a19f-ef87dcff3ee5" />
+
+The custom mixer uses v2's native OSC addresses and dB conversion. The dashboard combines desk configuration, client oversight, personal templates and password management.
+
+## Admin password
+
+Open **Admin → Config**, set a password of at least eight characters and confirm it. The same sign-in protects the custom dashboard, native desk settings, shared preset operations and admin API routes. Mixer clients continue to open the mixer without the admin password.
+
+You can change or remove the password from the same page by entering the current password. Password records persist in `data/admin-password.json`; browser sign-in sessions expire after 12 hours and are cleared when the server restarts. Demo password data is isolated under `config/demo/data/`.
+
+## Docker
+
+For a real desk, copy `.env.example` to `.env` and set the URL that phones/tablets will use to reach the server computer:
+
+```dotenv
+OSC_WEBMIXER_PUBLIC_URL=http://192.168.6.7
+WEB_PORT=80
+OSC_PORT=8000
+```
+
+Include the published web port in `OSC_WEBMIXER_PUBLIC_URL` when it is not 80, for example `http://192.168.6.7:8082`. This URL is used for the dashboard link and QR code.
+
+Build and start:
+
+```bash
+docker compose up --build -d
+docker compose logs -f webmixer
+```
+
+The production container listens for HTTP on 8080 and publishes it on `WEB_PORT` (default 80). It publishes UDP `OSC_PORT` (default 8000), which must match the console's outgoing iPad destination port. Change these published ports through `.env` and recreate the container with `docker compose up -d`.
+
+The `config/` and `data/` bind mounts preserve desk settings, shared presets, personal templates and the admin password across container replacement. In the console's iPad configuration, use the Docker host computer's network IP address and published UDP port.
+
+To run the offline mock demo in Docker:
+
+```bash
+docker compose -f compose.demo.yaml up --build -d
+docker compose -f compose.demo.yaml logs -f webmixer
+```
+
+Open [localhost:8082](http://localhost:8082/) or [its admin dashboard](http://localhost:8082/admin). The demo uses the same launcher as `npm run dev`, binds HTTP to `0.0.0.0`, publishes container HTTP 8080 on host 8082 and keeps UDP 8012/9012 between the server and mock inside the container. Its settings and password/templates remain isolated under `config/demo/` and `config/demo/data/`.
+
+Stop production with `docker compose down`, or stop the offline demo with `docker compose -f compose.demo.yaml down`. Saved files remain in the mounted directories.
+
+## Development checks
+
+```bash
+npm test
+npm run build
+```
+
+Tests exercise offline discovery, updates and UDP writes, query scheduling/value conversion, templates and admin authentication. The build regenerates the minified mixer JavaScript/CSS used by the production page after source changes.
+
+For a separately launched mock desk:
 
 ```bash
 npm run mock-desk
 ```
 
-2. In another shell, start webmixer as usual (`npm run start`).
-3. In the admin area, set the **Mixing Desk IP Address** to the machine running
-   the mock (`127.0.0.1` if it is the same box) and save.
-
-Options:
+Start the server with `npm start`, then point **Desk settings → Connection → Mixing Desk** at the mock (`127.0.0.1` when it is on the same computer).
 
 ```bash
-node tools/mock-desk.js --channels 32 --auxes 8   # bigger desk
-node tools/mock-desk.js --live                     # also push periodic snapshot changes
+node tools/mock-desk.js --channels 32 --auxes 8
+node tools/mock-desk.js --live
 node tools/mock-desk.js --port 9000 --reply-port 8000 --host 127.0.0.1
 ```
 
-With no flags it reads the port numbers from `config.json` when present.
-
-## Basic Setup Instructions For Docker
-
-1. Install Git and Docker
-
-2. Then execute following commands:
-
-```bash
-git clone https://github.com/castles/OSCWebMixer2.git
-
-cd OSCWebMixer2 
-
-docker build -t oscwebmixer2:latest .
-
-docker compose up -d
-```
-
-1. To see logs and to see what address to connect run:
-
-```bash
-docker compose logs -f webmixer
-```
+With no flags, the mock reads port numbers from `config.json` when present. `npm run dev` configures the mock automatically and is the easiest offline option.
 
 ## FAQs
 
 <details>
-  <summary>My External Devices won't connect</summary>
-  Ensure the server is running and the devices are connected on the same network. Verify desk settings in the admin area are correct.
+  <summary>My external devices won't connect</summary>
+  Check that the server and devices share a network and that their send/receive ports match the configuration in Desk settings. For Docker, use the host computer's network IP and published UDP port.
 </details>
 <details>
   <summary>What devices work?</summary>
-  Anything with a recent web browser can connect, that means it should work on iOS, Android, Windows, macOS and Linux.
+  Devices with a recent browser, including iOS, Android, Windows, macOS and Linux.
 </details>
 <details>
-  <summary>How many devices can I connect at once?</summary>
-  No limit has been set and we haved tested 20+ without any issues.
+  <summary>How many mixer clients can I connect?</summary>
+  There is no configured client limit. Practical capacity depends on the console, server and network; verify the expected number of clients before live use.
 </details>
 <details>
-  <summary>Can I connect multiple iPads at once with the DiGiCo app?</summary>
-  Yes, go for it.
+  <summary>Can I connect multiple iPads with the DiGiCo app?</summary>
+  The upstream v2 protocol supports simultaneous DiGiCo iPad apps alongside browser clients. Check the intended setup with your console.
 </details>
 <details>
   <summary>How do I enable a plugin?</summary>
-  Add a script into the plugin directory and make sure the filename doesn't start with an underscore. Restart webmixer and your plugin will be loaded.
+  Add a JavaScript file to <code>plugins/</code> whose filename does not start with an underscore, then restart the server.
 </details>
 <details>
-  <summary>Does OSCWebMixer2 also support DiGiCo S-Series consoles?</summary>
-  Currently, S-Series consoles are not supported by V2. For now, you will need to use <a href="https://github.com/castles/OSCWebMixer">version 1 of OSCWebMixer</a> with S-Series consoles.<br/>See <a href="https://github.com/castles/OSCWebMixer2/issues/4">this issue</a> for more information.
+  <summary>Does v2 support DiGiCo S-Series consoles?</summary>
+  S-Series consoles are not supported by v2. See <a href="https://github.com/castles/OSCWebMixer">OSCWebMixer v1</a> and the <a href="https://github.com/castles/OSCWebMixer2/issues/4">upstream issue</a>.
 </details>
+
+## Upstream project
+
+OSCWebMixer2 was created by Marc Castles. Its native protocol, configuration and mock desk form the basis of this version. The original project is available at [castles/OSCWebMixer2](https://github.com/castles/OSCWebMixer2) under the MIT license.

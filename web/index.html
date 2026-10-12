@@ -1,37 +1,103 @@
 <!DOCTYPE html>
-<html manifest="/manifest.appcache" lang="en">
-	<head>
-		<title>OSC Web Mixer</title>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-		<meta name="apple-mobile-web-app-capable" content="yes">
-		<meta name="apple-mobile-web-app-title" content="Web Mixer">
-		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-		<link rel="stylesheet" href="mixer.min.css">
-		<link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon" />
-		<link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
-		<link rel="apple-touch-icon" sizes="57x57" href="/images/apple-touch-icon-57x57.png" />
-		<link rel="apple-touch-icon" sizes="72x72" href="/images/apple-touch-icon-72x72.png" />
-		<link rel="apple-touch-icon" sizes="76x76" href="/images/apple-touch-icon-76x76.png" />
-		<link rel="apple-touch-icon" sizes="114x114" href="/images/apple-touch-icon-114x114.png" />
-		<link rel="apple-touch-icon" sizes="120x120" href="/images/apple-touch-icon-120x120.png" />
-		<link rel="apple-touch-icon" sizes="144x144" href="/images/apple-touch-icon-144x144.png" />
-		<link rel="apple-touch-icon" sizes="152x152" href="/images/apple-touch-icon-152x152.png" />
-		<link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-180x180.png" />
-		<link rel="apple-touch-startup-image" href="/images/apple-touch-icon.png">
-		<link rel="manifest" href="/manifest.json">
-	</head>
-	<body class="disconnected">
-		<div id="mix">
-			<div><label><input id="panning" type="checkbox" /><span>PAN</span></label></div>
-			<label class="selectLabel"><img src="" width="22" height="22" class="icon" /><span></span><select id="aux"></select></label>
-			<div></div>
-		</div>
-		<div id="snapshot"></div>
-		<div id="channelsWrap"><div id="channels"></div></div>
-		<div id="overlay" class="fullscreen"></div>
-		<div id="loader"></div>
-		<div id="auxiliaries" class="fullscreen"></div>
-		<script src="mixer.min.js"></script>
-	</body>
+<html lang="en">
+  <head>
+    <title>Glow UK Ears Mixer</title>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Ears Mixer" />
+    <meta name="theme-color" content="#191c21" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <link rel="stylesheet" href="mixer.min.css" />
+    <link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon" />
+    <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
+    <link
+      rel="apple-touch-icon"
+      sizes="57x57"
+      href="/images/apple-touch-icon-57x57.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="72x72"
+      href="/images/apple-touch-icon-72x72.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="76x76"
+      href="/images/apple-touch-icon-76x76.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="114x114"
+      href="/images/apple-touch-icon-114x114.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="120x120"
+      href="/images/apple-touch-icon-120x120.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="144x144"
+      href="/images/apple-touch-icon-144x144.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="152x152"
+      href="/images/apple-touch-icon-152x152.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="/images/apple-touch-icon-180x180.png"
+    />
+    <link rel="apple-touch-startup-image" href="/images/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="stylesheet" href="icons.css" />
+  </head>
+  <body class="disconnected">
+    <header id="mix">
+      <div class="mixer-brand"><img src="/images/logo.svg" alt="Glow"><span>Ears Mixer</span><span id="snapshot" class="snapshot-name" hidden></span></div>
+      <div class="mixer-header-controls"><label class="mix-choice"><span>Your mix</span><select id="aux" aria-label="Your AUX mix" disabled></select></label><button id="editUsername" type="button" title="Open profile" aria-label="Open profile"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#userRound"></use></svg><span id="deviceUsernameLabel">Profile</span></button></div>
+    </header>
+    <div class="mixer-toolbar">
+      <span id="mixerStatus" class="mixer-status" role="status" aria-live="polite">Connecting…</span>
+      <div class="toolbar-actions">
+        <button id="enterFullscreen" type="button" aria-label="Enter fullscreen" title="Enter fullscreen"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#maximize"></use></svg></button>
+        <div class="view-toggle" role="group" aria-label="Channel view">
+          <button id="listView" type="button" aria-label="List view" title="List view" aria-pressed="true"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#list"></use></svg></button>
+          <button id="gridView" type="button" aria-label="Grid view" title="Grid view" aria-pressed="false"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#grid2x2"></use></svg></button>
+        </div>
+        <button id="compactMode" type="button" aria-pressed="false"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#moveHorizontal"></use></svg><span>Compact</span></button>
+        <label class="favourites-toggle"><input id="favourites" type="checkbox"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#star"></use></svg><span>Favourites</span></label>
+        <button id="editLayout" type="button" aria-pressed="false" disabled><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#pencil"></use></svg><span>Edit layout</span></button>
+      </div>
+    </div>
+    <button id="exitFullscreen" type="button" aria-label="Exit fullscreen" title="Exit fullscreen" hidden><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#minimize"></use></svg><span>Exit fullscreen</span></button>
+    <p id="layoutHint" hidden>Drag to reorder.</p>
+    <main id="channelsWrap" aria-label="Mix channels">
+      <div id="channels"></div>
+      <p id="emptyChannels" hidden>No favourites yet. Turn off Favourites to star channels.</p>
+    </main>
+    <dialog id="profileDialog" class="settings-dialog" aria-labelledby="profileTitle">
+      <div class="settings-dialog-header"><div><h2 id="profileTitle">Your profile</h2></div><button id="closeProfile" type="button" aria-label="Close profile"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#x"></use></svg></button></div>
+      <form id="usernameForm" class="settings-section"><label for="deviceUsername">Your username</label><input id="deviceUsername" maxlength="80" required autocomplete="nickname" placeholder="e.g. Joe Clack"><p id="usernameError" class="settings-detail" role="alert"></p><p id="usernameSaved" class="settings-detail" role="status" hidden></p><div class="dialog-actions"><button type="submit">Save username</button><button id="skipUsername" type="button" hidden>Skip for now</button></div></form>
+      <div id="profileTemplates">
+      <section class="settings-section"><label for="savedTemplate">Template</label><select id="savedTemplate" disabled><option value="">Loading templates…</option></select><p id="templateUpdated" class="settings-detail"></p><button id="loadTemplate" type="button" disabled><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#download"></use></svg>Load template</button><button id="retryTemplates" type="button" hidden>Retry loading templates</button></section>
+      <section class="settings-section"><p class="settings-detail">Starting fresh resets your layout and favourites. Settings stay on this device until browser storage is cleared or resets.</p><button id="startFresh" type="button">Start fresh</button></section>
+      <p id="templateMessage" role="status" aria-live="polite"></p>
+      </div>
+    </dialog>
+    <script src="vendor/Sortable.min.js"></script>
+    <script src="icons.js"></script>
+    <script src="identity.js"></script>
+    <script src="mixer.min.js"></script>
+    <script src="templates.js"></script>
+  </body>
 </html>

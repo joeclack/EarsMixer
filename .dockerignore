@@ -9,5 +9,7 @@ tmp/
 build/
 dist/
 node_modules/
+config/
+data/
 config.json
 .env*

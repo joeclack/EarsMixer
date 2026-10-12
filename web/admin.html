@@ -1,65 +1,202 @@
 <!DOCTYPE html>
 <html lang="en">
+  <head>
+    <title>OSC Web Mixer Admin</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="admin.css" />
+    <link rel="stylesheet" href="desk-settings.css" />
+    <link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon" />
+    <link rel="stylesheet" href="icons.css" />
+  </head>
+  <body>
+    <div class="admin-shell">
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <div class="admin-brand"><img src="/images/logo.svg" alt="Glow"><span>Ears Mixer</span></div>
+          <small>Admin dashboard</small>
+        </div>
 
-<head>
-	<title>OSC Web Mixer Admin</title>
-	<meta charset="UTF-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-	<link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon" />
-	<link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
-	<link rel="apple-touch-icon" sizes="57x57" href="/images/apple-touch-icon-57x57.png" />
-	<link rel="apple-touch-icon" sizes="72x72" href="/images/apple-touch-icon-72x72.png" />
-	<link rel="apple-touch-icon" sizes="76x76" href="/images/apple-touch-icon-76x76.png" />
-	<link rel="apple-touch-icon" sizes="114x114" href="/images/apple-touch-icon-114x114.png" />
-	<link rel="apple-touch-icon" sizes="120x120" href="/images/apple-touch-icon-120x120.png" />
-	<link rel="apple-touch-icon" sizes="144x144" href="/images/apple-touch-icon-144x144.png" />
-	<link rel="apple-touch-icon" sizes="152x152" href="/images/apple-touch-icon-152x152.png" />
-	<link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-180x180.png" />
-	<link rel="apple-touch-startup-image" href="/images/apple-touch-icon.png">
-	<link rel="stylesheet" href="admin.css">
-</head>
+        <nav class="sidebar-nav" id="sidebarNav">
+          <button type="button" class="nav-item active" data-page="overview">
+            <svg class="app-icon" aria-hidden="true" focusable="false"><use href="vendor/lucide.svg#layoutDashboard"></use></svg> Overview
+          </button>
+          <button type="button" class="nav-item" data-page="live-mix">
+            <svg class="app-icon" aria-hidden="true" focusable="false"><use href="vendor/lucide.svg#slidersHorizontal"></use></svg> Live mix
+          </button>
+          <button type="button" class="nav-item" data-page="clients">
+            <svg class="app-icon" aria-hidden="true" focusable="false"><use href="vendor/lucide.svg#users"></use></svg> Clients
+          </button>
+          <button type="button" class="nav-item" data-page="templates"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#layoutDashboard"></use></svg> Templates</button>
+          <button type="button" class="nav-item" data-page="desk-settings"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#slidersHorizontal"></use></svg> Desk settings</button>
+          <button type="button" class="nav-item" data-page="config">
+            <svg class="app-icon" aria-hidden="true" focusable="false"><use href="vendor/lucide.svg#settings"></use></svg> Config
+          </button>
+        </nav>
 
-<body class="disconnected">
-	
-	<nav id="mainNav">
-		<ul>
-			<li><a href="#global" class="selected">Global Settings<div class="status"></div></a></li>
-			<li><a href="#aux">Auxiliaries</a></li>
-			<li><a href="#channels">Channels</a></li>
-			<li><a href="#additional-devices">Additional Devices</a></li>
-			<li><a href="#presets">Presets</a></li>
-		</ul>
-	</nav>
-	<div id="mainContent">
-		<form id="configForm" method="post" action="/admin">
+        <a class="sidebar-footer" href="/"><svg class="app-icon" aria-hidden="true" focusable="false"><use href="vendor/lucide.svg#arrowLeft"></use></svg> Back to mixer</a>
+      </aside>
 
-			<a class="donate" href="https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=VL5VBHN57FVS2&item_name=OSCWebMixer">
-				<img src="/images/money.svg" width="40" height="40" alt="Money Icon" />
-				OSCWebMixer is free to use but has taken quite a bit of time to develop. Please consider making a donation if you find it useful and would like to see future development. 
-				<img src="/images/money.svg" width="40" height="40" alt="Money Icon" />
-			</a>
+      <div class="admin-main">
+        <header class="page-header">
+          <button
+            type="button"
+            class="sidebar-toggle"
+            id="sidebarToggle"
+            aria-label="Toggle navigation"
+          >
+            <svg class="app-icon" aria-hidden="true" focusable="false"><use href="vendor/lucide.svg#menu"></use></svg> Menu
+          </button>
+          <h1 id="pageTitle">Overview</h1>
+          <span id="adminConnection" class="connection-status" role="status" aria-live="polite"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#wifi"></use></svg><span>Connecting…</span></span>
+          <button id="adminLogout" type="button" hidden>Sign out</button>
+        </header>
 
-			<section id="global-content" class="show">
+        <main class="page-content">
+          <section class="card" id="loading">
+            <p>Connecting to server…</p>
+          </section>
+
+          <div id="content" hidden>
+            <section class="page active" data-page="overview">
+              <div class="card stats">
+                <div class="stat">
+                  <span class="stat-label">Connected clients</span>
+                  <span class="stat-value" id="connections">—</span>
+                </div>
+                <div class="stat">
+                  <span class="stat-label">Admin password</span>
+                  <span class="stat-value" id="authStatus">—</span>
+                </div>
+                <div class="stat">
+                  <span class="stat-label">AUX sends</span>
+                  <span class="stat-value" id="auxCount">—</span>
+                </div>
+                <div class="stat">
+                  <span class="stat-label">Channels</span>
+                  <span class="stat-value" id="channelCount">—</span>
+                </div>
+              </div>
+
+              <section class="card">
+                <h2>Desk connection</h2>
+                <p id="deskStatus" role="status">Waiting for desk discovery…</p>
+                <p id="deskSnapshot" class="muted" hidden></p>
+              </section>
+              <section class="card">
+                <h2>Mixer URL</h2>
+                <div class="url-row">
+                  <a id="mixerUrl" href="/" target="_blank" rel="noopener"></a>
+                  <button type="button" id="copyUrl"><svg class="app-icon" aria-hidden="true" focusable="false"><use href="vendor/lucide.svg#copy"></use></svg> Copy</button>
+                </div>
+                <div class="qr-wrap">
+                  <img id="qrCode" alt="QR code for mixer URL" />
+                </div>
+              </section>
+            </section>
+
+            <section class="page" data-page="live-mix">
+              <section class="card live-mix-section">
+                <p id="liveMixHint" class="muted">
+                  Select an AUX to view live sends.
+                </p>
+                <div class="live-toolbar">
+                  <label class="mix-choice"><span>View mix</span><select id="auxMenu" aria-label="View AUX mix"></select></label>
+                  <div class="view-toggle" role="group" aria-label="Channel view">
+                    <button id="adminListView" type="button" aria-label="List view" title="List view" aria-pressed="true"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#list"></use></svg></button>
+                    <button id="adminGridView" type="button" aria-label="Grid view" title="Grid view" aria-pressed="false"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#grid2x2"></use></svg></button>
+                  </div>
+                </div>
+                <details class="foldable" id="liveMixFold">
+                  <summary id="liveMixSummary">Live sends</summary>
+                  <div id="liveMixPanel" class="foldable-body">
+                    <div class="live-mix-header">
+                      <h2 id="liveMixTitle"></h2>
+                      <label class="pan-toggle" id="panToggleLabel" hidden>
+                        <input id="panToggle" type="checkbox" />
+                        <svg class="app-icon" aria-hidden="true" focusable="false"><use href="vendor/lucide.svg#moveHorizontal"></use></svg><span>PAN</span>
+                      </label>
+                    </div>
+                    <div id="liveMixChannels" class="live-mix-channels"></div>
+                  </div>
+                </details>
+              </section>
+            </section>
+
+            <section class="page" data-page="clients">
+              <section class="card">
+                <h2>Connected clients</h2>
+                <p id="noClients" class="muted" hidden>No clients connected.</p>
+                <div id="clientsList"></div>
+              </section>
+
+              <section class="card" id="disconnectedSection" hidden>
+                <h2>Disconnected clients</h2>
+                <div id="disconnectedClientsList"></div>
+              </section>
+            </section>
+
+            <section class="page" data-page="templates">
+              <section class="card">
+                <h2>Client starting templates</h2>
+                <div class="template-actions"><label class="template-field" for="adminTemplateSelect">Saved templates<select id="adminTemplateSelect"><option value="">Loading templates…</option></select></label>
+<button id="editSavedTemplate" type="button" disabled>Edit template</button>
+<button id="newTemplate" type="button"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#pencil"></use></svg> New template</button></div>
+                <p id="adminTemplateUpdated" class="muted"></p>
+                <p id="adminTemplateMessage" role="status" aria-live="polite"></p>
+              </section>
+              <form id="templateEditor" class="card" hidden>
+                <h2 id="templateEditorTitle">New template</h2>
+                <fieldset id="templateFields">
+                  <div class="template-form-grid">
+                    <label class="template-field">Template name<input id="templateName" maxlength="80" required placeholder="e.g. Drums"></label>
+                    <label class="template-field">Saved by<input id="templateAuthor" maxlength="80" autocomplete="name" placeholder="Your name"></label>
+                    <label class="template-field">Starting AUX mix<select id="templateAux" required></select></label>
+                    <label class="template-field">Starting view<select id="templateView"><option value="list">List</option><option value="grid">Grid on larger screens</option></select></label>
+                  </div>
+                  <label class="template-filter"><input id="templateFavouritesOnly" type="checkbox"> Start with favourites only for this AUX</label>
+                  <p class="muted">Drag to reorder and star favourites for each AUX. Arrow keys on a handle also move channels.</p>
+                  <div id="templateChannels" aria-label="Template channels"></div>
+                  <p id="templateSaveHint" class="muted"></p>
+                  <button id="saveAdminTemplate" type="submit"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#save"></use></svg> Save template</button>
+                </fieldset>
+              </form>
+            </section>
+<section class="page" data-page="desk-settings">
+<section class="card desk-settings disconnected" id="deskSettings">
+<h2>Desk settings</h2>
+<p class="muted">Configure the desk connection and the channels and AUXes available to mixer clients.</p>
+<nav class="desk-settings-tabs" aria-label="Desk settings" role="tablist">
+<button type="button" role="tab" id="desk-tab-global" data-desk-tab="global" aria-controls="global-content" aria-selected="true" class="selected">Connection</button>
+<button type="button" role="tab" id="desk-tab-aux" data-desk-tab="aux" aria-controls="aux-content" aria-selected="false">AUXes</button>
+<button type="button" role="tab" id="desk-tab-channels" data-desk-tab="channels" aria-controls="channels-content" aria-selected="false">Channels</button>
+<button type="button" role="tab" id="desk-tab-additional-devices" data-desk-tab="additional-devices" aria-controls="additional-devices-content" aria-selected="false">Additional devices</button>
+<button type="button" role="tab" id="desk-tab-presets" data-desk-tab="presets" aria-controls="presets-content" aria-selected="false">Desk presets</button></nav><div class="desk-save-bar">
+<p id="deskSettingsMessage" role="status" aria-live="polite"></p>
+<button type="submit" form="configForm" class="btn-save" id="saveDeskSettings">Save settings</button></div>
+<form id="configForm" method="post" action="/admin" novalidate>
+
+			<section id="global-content" class="show" role="tabpanel">
 				<div class="grid-container">
 					<div class="grid-column">
 						<h2>OSC Web Mixer</h2>
 						<div class="tips">Settings for the OSCWebmixer web interface and OSC protocol</div>
 						<label>IP Address<input disabled name="ip_address" /></label>
-						<label>Webserver Port<input type="number" name="server_port" required /></label>
-						<label>OSC Receive Port<input name="osc_port" type="number" /></label>
+						<label>Webserver Port<input type="number" min="1" max="65535" name="server_port" required /></label>
+						<label>OSC Receive Port<input name="osc_port" required type="number" min="1" max="65535" /></label>
 						<label><input type="checkbox" name="debug" value="debug" />Log debug messages</label>
 					</div>
 					<div class="grid-column">
 						<h2>Mixing Desk</h2>
 						<div class="tips">On the console, go to Setup > External Control > DiGiCo iPad</div>
 						<label>IP Address <input type="text" name="desk_ip" required /></label>
-						<label>Send Port<input type="number" name="desk_send_port" disabled /></label>
-						<label>Receive Port<input type="number" name="desk_port" required /></label>
+						<label>Send Port<input type="number" min="1" max="65535" name="desk_send_port" disabled /></label>
+						<label>Receive Port<input type="number" min="1" max="65535" name="desk_port" required /></label>
 					</div>
 				</div>
 			</section>
 
-			<section id="aux-content">
+			<section id="aux-content" role="tabpanel">
 				<div class="button-row">
 					<button type="button" class="toggle-selection">Select All/None</button>
 					<button type="button" class="invert-selection">Invert Selection</button>
@@ -67,7 +204,7 @@
 				<div id="auxiliaries" class="list"></div>
 			</section>
 
-			<section id="channels-content">
+			<section id="channels-content" role="tabpanel">
 				<div class="button-row">
 					<button type="button" class="toggle-selection">Select All/None</button>
 					<button type="button" class="invert-selection">Invert Selection</button>
@@ -75,19 +212,19 @@
 				<div id="channels" class="list"></div>
 			</section>
 
-			<section id="additional-devices-content">
+			<section id="additional-devices-content" role="tabpanel">
 				<div id="externalDevices"></div>
-				<button id="addExternal">+</button>
+				<button type="button" id="addExternal">+</button>
 			</section>
 
-			<section id="presets-content">
+			<section id="presets-content" role="tabpanel">
 				<div class="tips">Presets allow you to save and restore your webmixer config (Auxiliaries, Channels).</div>
 					<div class="preset-manager-container">
 						<div class="new-preset-row">
 							<input type="text" id="new-preset-name" placeholder="New preset name...">
 							<div class="button-row">
-								<button id="save-preset">Save</button>
-								<button id="refresh-presets">Refresh</button>
+								<button type="button" id="save-preset">Save</button>
+								<button type="button" id="refresh-presets">Refresh</button>
 							</div>
 						</div>
 						<div id="preset-list" class="preset-selection-list"></div>
@@ -95,13 +232,7 @@
 			</section>
 
 		</form>
-	</div>
-
-	<div class="sticky-footer">
-        <button type="submit" form="configForm" class="btn-save">Save Settings</button>
-    </div>
-
-	<dialog id="iconDialog">
+<dialog id="iconDialog">
 		<div>
 			<img class="iconDialogImage"
 				src="data:image/svg+xml;charset=utf8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%3E%3C/svg%3E" />
@@ -146,8 +277,73 @@
 			<img class="iconDialogImage" src="/images/instruments/xylophone.svg" />
 			<img class="iconDialogImage" src="/images/instruments/headset.svg" />
 		</div>
-	</dialog>
-	<script src="admin.js"></script>
-</body>
+	</dialog></section></section>
+            <section class="page" data-page="config">
+              <section class="card password-card">
+                <h2>Admin password</h2>
+                <p id="adminPasswordStatus" class="muted">Loading password settings…</p>
+                <form id="adminPasswordForm">
+                  <fieldset id="adminPasswordFields" class="password-fields">
+                    <label id="currentPasswordLabel" class="password-field" hidden>Current password
+                      <input id="currentAdminPassword" type="password" autocomplete="current-password" maxlength="256">
+                    </label>
+                    <label class="password-field">New password
+                      <input id="newAdminPassword" type="password" autocomplete="new-password" minlength="8" maxlength="256" required aria-describedby="adminPasswordHint">
+                    </label>
+                    <label class="password-field">Confirm new password
+                      <input id="confirmAdminPassword" type="password" autocomplete="new-password" minlength="8" maxlength="256" required>
+                    </label>
+                    <p id="adminPasswordHint" class="muted">Use at least 8 characters. Anyone opening the admin dashboard will need this password.</p>
+                    <div class="password-actions">
+                      <button id="saveAdminPassword" type="submit">Set password</button>
+                      <button id="removeAdminPassword" type="button" hidden>Remove password</button>
+                    </div>
+                  </fieldset>
+                </form>
+                <p id="adminPasswordMessage" role="status" aria-live="polite"></p>
+              </section>
+              <section class="card">
+                <h2>AUX sends</h2>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Channel</th>
+                      <th>Label</th>
+                      <th>Stereo</th>
+                    </tr>
+                  </thead>
+                  <tbody id="auxTable"></tbody>
+                </table>
+              </section>
 
+              <section class="card">
+                <h2>Input channels</h2>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Channel</th>
+                      <th>Label</th>
+                    </tr>
+                  </thead>
+                  <tbody id="channelTable"></tbody>
+                </table>
+              </section>
+            </section>
+          </div>
+
+          <section class="card error" id="error" hidden>
+            <p>Connection lost. Reconnecting to the server…</p>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <button id="sidebarBackdrop" class="sidebar-backdrop" type="button" aria-label="Close navigation" hidden></button>
+    <script src="icons.js"></script>
+    <script src="vendor/Sortable.min.js"></script>
+    <script src="admin-password.js"></script>
+    <script src="admin.js"></script>
+    <script src="admin-templates.js"></script>
+    <script src="desk-settings.js"></script>
+  </body>
 </html>

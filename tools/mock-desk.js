@@ -120,6 +120,7 @@ const udpPort = new osc.UDPPort({
 });
 
 let replyTo = null; // { address, port } of the webmixer server, learned from its first packet
+let dropQueryOnce = args['drop-query-once'];
 
 /**
  * Send an OSC message back to the webmixer server.
@@ -151,6 +152,11 @@ udpPort.on("message", function(oscMsg, timeTag, info)
 
 	const address = oscMsg.address;
 	console.log(`<- ${address} ${oscMsg.args && oscMsg.args.length ? JSON.stringify(oscMsg.args) : ""}`.trimEnd());
+	if(address === dropQueryOnce) {
+		dropQueryOnce = null;
+		console.log('  (dropping one reply to simulate packet loss)');
+		return;
+	}
 
 	// --- query for a value (address ends with /?) ---
 	if(address.endsWith("/?"))

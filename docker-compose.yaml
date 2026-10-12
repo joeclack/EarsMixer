@@ -1,8 +1,16 @@
 services:
   webmixer:
+    build: .
     image: oscwebmixer2:latest
-    container_name: webmixer
     restart: unless-stopped
-    network_mode: host
+    init: true
+    ports:
+      - "${WEB_PORT:-80}:8080/tcp"
+      - "${OSC_PORT:-8000}:${OSC_PORT:-8000}/udp"
+    environment:
+      OSC_WEBMIXER_WEB_PORT: "8080"
+      OSC_WEBMIXER_OSC_PORT: "${OSC_PORT:-8000}"
+      OSC_WEBMIXER_PUBLIC_URL: "${OSC_WEBMIXER_PUBLIC_URL:-http://localhost}"
     volumes:
       - ./config:/webmixer/config
+      - ./data:/webmixer/data

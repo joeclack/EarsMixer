@@ -1,13 +1,13 @@
 {
-    "name": "OSCWebMixerV2",
+    "name": "earsmixer",
     "main": "index.js",
     "version": "2.5.9",
     "description": "A server that allows web clients and other external devices to control their own mix for DiGiCo sound desks.",
     "author": "Marc Castles",
-    "homepage": "https://launchinteractive.com.au",
+    "homepage": "https://github.com/joeclack/EarsMixer",
     "repository": {
         "type": "git",
-        "url": "git://github.com/"
+        "url": "https://github.com/joeclack/EarsMixer.git"
     },
     "scripts": {
         "start": "node index.js",
@@ -18,8 +18,10 @@
         "build:css": "esbuild web/mixer.css --minify --outfile=web/mixer.min.css",
         "build": "npm run build:js && npm run build:css",
         "prepackage": "npm run build",
-        "package": "npx pkg . --output \"dist/${npm_package_name}-${npm_package_version}\"",
-        "package-plugins": "zip -r dist/${npm_package_name}-plugins-${npm_package_version}.zip plugins/"
+        "package": "npx pkg . --output \"dist/EarsMixer-${npm_package_version}\"",
+        "installer:windows": "node tools/build-installer.cjs",
+        "build:windows-support": "node tools/build-windows-support.cjs",
+        "package-plugins": "zip -r dist/EarsMixer-plugins-${npm_package_version}.zip plugins/"
     },
     "license": "MIT",
     "keywords": [
@@ -61,6 +63,6 @@
         "outputPath": "dist"
     },
     "bin": {
-        "oscwebmixer2": "index.js"
+        "earsmixer": "index.js"
     }
 }

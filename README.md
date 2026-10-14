@@ -1,6 +1,6 @@
-# OSCWebMixer2 · Ears Mixer
+# EarsMixer
 
-This version combines the custom Ears Mixer interface and admin dashboard with the native OSC backend from [OSCWebMixer2](https://github.com/castles/OSCWebMixer2). It supports DiGiCo SD Series and Quantum consoles through their built-in DiGiCo iPad connection.
+This version combines the custom EarsMixer interface and admin dashboard with the native OSC backend from [OSCWebMixer2](https://github.com/castles/OSCWebMixer2). It supports DiGiCo SD Series and Quantum consoles through their built-in DiGiCo iPad connection.
 
 The mixer opens at `/` and the admin dashboard at `/admin`. Desk configuration is built into the dashboard under **Desk settings**.
 
@@ -23,7 +23,7 @@ The v2 backend uses the same built-in iPad connection as the DiGiCo apps, allowi
 ## Requirements
 
 - Node.js 22 or newer, and Git for installing the modified OSC dependency.
-- Windows, macOS or Linux, or Docker with Docker Compose.
+- Windows, macOS or Linux.
 - A DiGiCo SD Series or Quantum console for a real connection. The offline demo works without a console.
 - The server computer, console and mixer devices on the same network for real use.
 
@@ -75,39 +75,29 @@ Open **Admin → Config**, set a password of at least eight characters and confi
 
 You can change or remove the password from the same page by entering the current password. Password records persist in `data/admin-password.json`; browser sign-in sessions expire after 12 hours and are cleared when the server restarts. Demo password data is isolated under `config/demo/data/`.
 
-## Docker
+## Windows installer
 
-For a real desk, copy `.env.example` to `.env` and set the URL that phones/tablets will use to reach the server computer:
+On Windows, install dependencies with `npm ci`, install [Inno Setup 6](https://jrsoftware.org/isinfo.php), then run:
 
-```dotenv
-OSC_WEBMIXER_PUBLIC_URL=http://192.168.6.7
-WEB_PORT=80
-OSC_PORT=8000
+```powershell
+npm run installer:windows
 ```
 
-Include the published web port in `OSC_WEBMIXER_PUBLIC_URL` when it is not 80, for example `http://192.168.6.7:8082`. This URL is used for the dashboard link and QR code.
+The build minifies the web assets, packages a Windows x64 executable with Node.js 22 included, compiles a native Windows tray app and compiles `installer/EarsMixer.iss`. Product name, installer version, publisher, URL and output basename are defined in `installer/version.inc.iss`. The default output is `dist/EarsMixer-<version>-windows-x64-setup.exe`. Update the installer version in the include file for releases. If Inno Setup is installed elsewhere, set `ISCC_PATH` to the full path of `ISCC.exe`. The tray compiler uses the Windows .NET Framework compiler; `CSC_PATH` can override its path. The first build downloads the packaging runtime and the official WinSW 2.12.0 service wrapper, whose SHA-256 is checked before packaging. Its MIT license is included in the installation.
 
-Build and start:
+After building the executable once, you can also open `installer/EarsMixer.iss` in the Inno Setup editor and choose **Compile**. Both editor and command-line builds read `installer/version.inc.iss`. Use `npm run installer:windows` again after application changes to rebuild the executable before compiling the installer.
 
-```bash
-docker compose up --build -d
-docker compose logs -f webmixer
-```
+GitHub Actions also builds the installer in the **Windows installer** job of `.github/workflows/build.yml`, on pushes and pull requests to `main`. To build manually, open **Actions → build-and-package → Run workflow**. The Windows job installs dependencies, runs the tests and calls `npm run installer:windows` on a Windows runner. Download **EarsMixer-windows-installer** from the completed run's Artifacts section; the ZIP contains the setup executable. Artifacts are retained for 30 days. The installer name and version follow `installer/version.inc.iss`.
 
-The production container listens for HTTP on 8080 and publishes it on `WEB_PORT` (default 80). It publishes UDP `OSC_PORT` (default 8000), which must match the console's outgoing iPad destination port. Change these published ports through `.env` and recreate the container with `docker compose up -d`.
+The installer supports Windows 10 version 1607 or later and Windows 11 on x64-compatible systems. It requires administrator permission, installs into Program Files and registers **EarsMixer** (`EarsMixer`) as an automatic Windows service with delayed startup. The service runs as the limited LocalService account, starts before sign-in and restarts after a process failure. Installed users do not need Node.js or Git, and no command prompt needs to stay open. Upgrades stop the service before replacing files and start it again afterwards; uninstall removes the service while retaining saved data.
 
-The `config/` and `data/` bind mounts preserve desk settings, shared presets, personal templates and the admin password across container replacement. In the console's iPad configuration, use the Docker host computer's network IP address and published UDP port.
+The **EarsMixer tray** shortcut opens an icon in the notification area at the right of the taskbar (it may be in Windows' hidden-icons menu). By default the installer also adds it to sign-in startup; that option can be turned off. Double-click the icon for the mixer QR code and a copyable link. Right-click for service status, Start/Stop/Restart, the mixer, admin dashboard, logs and settings. Service changes request administrator permission through UAC. Exiting the tray or closing its QR window leaves the service running. The QR code works even when an admin password is set, and follows the current network address and configured web port.
 
-To run the offline mock demo in Docker:
+Settings, presets, templates, the admin password and plugins now live under `%PROGRAMDATA%\EarsMixer` (in `config/`, `data/` and `plugins/`). Rotating server logs are in `logs/`. These files are preserved across upgrades and uninstall. On the first EarsMixer installation, the installer copies settings, plugins and logs from `%PROGRAMDATA%\OSCWebMixer2` first, then the installing user's `%LOCALAPPDATA%\OSCWebMixer2` and `%LOCALAPPDATA%\EarsMixer`. Existing files in the new folder take precedence and the original files are retained. Custom service options are preserved when upgrading from the old installation folder. Stop an old console-based server with Ctrl+C before installing. If the old per-user installation remains in Installed Apps, it can be uninstalled after migration. When elevating with a different administrator account, manually copy the original user's saved folders instead. To migrate a source installation, stop the service, copy its `config/`, `data/` and any `plugins/` to the ProgramData folder as an administrator, then start the service again.
 
-```bash
-docker compose -f compose.demo.yaml up --build -d
-docker compose -f compose.demo.yaml logs -f webmixer
-```
+The installed service explicitly sets its settings/data paths in `{installation folder}\EarsMixerService.xml`; shell-specific environment overrides do not change them. Administrators can edit that XML for custom paths or a fixed `OSC_WEBMIXER_PUBLIC_URL`, then restart the service. Custom directories need LocalService read/write access. The XML is preserved across upgrades. Source and demo launches retain their existing environment-variable behaviour.
 
-Open [localhost:8082](http://localhost:8082/) or [its admin dashboard](http://localhost:8082/admin). The demo uses the same launcher as `npm run dev`, binds HTTP to `0.0.0.0`, publishes container HTTP 8080 on host 8082 and keeps UDP 8012/9012 between the server and mock inside the container. Its settings and password/templates remain isolated under `config/demo/` and `config/demo/data/`.
-
-Stop production with `docker compose down`, or stop the offline demo with `docker compose -f compose.demo.yaml down`. Saved files remain in the mounted directories.
+HTTP defaults to port 80 and incoming OSC to UDP 8000. The installer adds a Windows Firewall rule for the installed `EarsMixer.exe`, allowing incoming connections from the local subnet on Private networks, and removes that rule on uninstall. Set your mixer network to Private in Windows. If you change the HTTP port in Desk settings, the tray's browser links automatically use the saved port. A QR link that shows `127.0.0.1` means the computer has no network address yet; connect it to the mixer network and the tray will refresh.
 
 ## Development checks
 
@@ -138,7 +128,7 @@ With no flags, the mock reads port numbers from `config.json` when present. `npm
 
 <details>
   <summary>My external devices won't connect</summary>
-  Check that the server and devices share a network and that their send/receive ports match the configuration in Desk settings. For Docker, use the host computer's network IP and published UDP port.
+  Check that the server and devices share a network and that their send/receive ports match the configuration in Desk settings.
 </details>
 <details>
   <summary>What devices work?</summary>

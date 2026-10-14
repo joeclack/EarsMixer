@@ -1,0 +1,26 @@
+<service>
+  <id>EarsMixer</id>
+  <name>EarsMixer</name>
+  <description>EarsMixer web and OSC server for DiGiCo consoles.</description>
+  <executable>%BASE%\EarsMixer.exe</executable>
+  <workingdirectory>%ProgramData%\EarsMixer</workingdirectory>
+  <env name="OSC_WEBMIXER_HOME" value="%ProgramData%\EarsMixer" />
+  <env name="OSC_WEBMIXER_CONFIG_DIR" value="%ProgramData%\EarsMixer\config" />
+  <env name="OSC_WEBMIXER_DATA_DIR" value="%ProgramData%\EarsMixer\data" />
+  <env name="OSC_WEBMIXER_SERVICE" value="1" />
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+  <serviceaccount>
+    <domain>NT AUTHORITY</domain>
+    <user>LocalService</user>
+  </serviceaccount>
+  <stoptimeout>10 sec</stoptimeout>
+  <onfailure action="restart" delay="10 sec" />
+  <onfailure action="restart" delay="30 sec" />
+  <resetfailure>1 hour</resetfailure>
+  <logpath>%ProgramData%\EarsMixer\logs</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>4</keepFiles>
+  </log>
+</service>

@@ -1,6 +1,7 @@
 name: build-and-package
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main ]
   pull_request:
@@ -38,11 +39,52 @@ jobs:
       - name: Upload executables
         uses: actions/upload-artifact@v4
         with:
-          name: binaries
+          name: EarsMixer-binaries
           path: dist/
 
       - name: Upload plugins
         uses: actions/upload-artifact@v4
         with:
-          name: plugins
+          name: EarsMixer-plugins
           path: plugins/
+
+  windows-installer:
+    name: Windows installer
+    runs-on: windows-2025
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Use HTTPS for the public OSC dependency
+        # The lockfile uses a Git SSH URL; no SSH key is needed for this public repo.
+        run: |
+          git config --global --add 'url.https://github.com/.insteadOf' 'ssh://git@github.com/'
+          git config --global --add 'url.https://github.com/.insteadOf' 'git@github.com:'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build Windows installer
+        # Inno Setup and the .NET Framework compiler are included in windows-2025.
+        # Product metadata comes from installer/version.inc.iss.
+        run: npm run installer:windows
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: EarsMixer-windows-installer
+          path: dist/*.exe
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30

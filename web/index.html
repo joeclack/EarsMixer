@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <title>Glow UK Ears Mixer</title>
+    <title>EarsMixer</title>
     <meta charset="UTF-8" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="Ears Mixer" />
+    <meta name="apple-mobile-web-app-title" content="EarsMixer" />
     <meta name="theme-color" content="#191c21" />
     <meta
       name="apple-mobile-web-app-status-bar-style"
@@ -63,7 +63,7 @@
   </head>
   <body class="disconnected">
     <header id="mix">
-      <div class="mixer-brand"><img src="/images/logo.svg" alt="Glow"><span>Ears Mixer</span><span id="snapshot" class="snapshot-name" hidden></span></div>
+      <div class="mixer-brand"><img src="/images/logo.svg" alt="Glow"><span>EarsMixer</span><span id="snapshot" class="snapshot-name" hidden></span></div>
       <div class="mixer-header-controls"><label class="mix-choice"><span>Your mix</span><select id="aux" aria-label="Your AUX mix" disabled></select></label><button id="editUsername" type="button" title="Open profile" aria-label="Open profile"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#userRound"></use></svg><span id="deviceUsernameLabel">Profile</span></button></div>
     </header>
     <div class="mixer-toolbar">
@@ -88,7 +88,7 @@
     </main>
     <dialog id="profileDialog" class="settings-dialog" aria-labelledby="profileTitle">
       <div class="settings-dialog-header"><div><h2 id="profileTitle">Your profile</h2></div><button id="closeProfile" type="button" aria-label="Close profile"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#x"></use></svg></button></div>
-      <form id="usernameForm" class="settings-section"><label for="deviceUsername">Your username</label><input id="deviceUsername" maxlength="80" required autocomplete="nickname" placeholder="e.g. Joe Clack"><p id="usernameError" class="settings-detail" role="alert"></p><p id="usernameSaved" class="settings-detail" role="status" hidden></p><div class="dialog-actions"><button type="submit">Save username</button><button id="skipUsername" type="button" hidden>Skip for now</button></div></form>
+      <form id="usernameForm" class="settings-section"><label for="deviceUsername">Your username</label><input id="deviceUsername" maxlength="80" required autocomplete="nickname"><p id="usernameError" class="settings-detail" role="alert"></p><p id="usernameSaved" class="settings-detail" role="status" hidden></p><div class="dialog-actions"><button type="submit">Save username</button><button id="skipUsername" type="button" hidden>Skip for now</button></div></form>
       <div id="profileTemplates">
       <section class="settings-section"><label for="savedTemplate">Template</label><select id="savedTemplate" disabled><option value="">Loading templates…</option></select><p id="templateUpdated" class="settings-detail"></p><button id="loadTemplate" type="button" disabled><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#download"></use></svg>Load template</button><button id="retryTemplates" type="button" hidden>Retry loading templates</button></section>
       <section class="settings-section"><p class="settings-detail">Starting fresh resets your layout and favourites. Settings stay on this device until browser storage is cleared or resets.</p><button id="startFresh" type="button">Start fresh</button></section>

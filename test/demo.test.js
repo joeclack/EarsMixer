@@ -40,7 +40,7 @@ async function connect(url) {
 }
 
 test("offline v2: discovery, scoped clients, dashboard, templates, admin sessions and shutdown", { timeout: 30000 }, async () => {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "oscwebmixer2-demo-"));
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "earsmixer-demo-"));
   const webPort = await availablePort();
   const oscPort = await availablePort(true);
   let deskPort = await availablePort(true);
@@ -68,6 +68,10 @@ test("offline v2: discovery, scoped clients, dashboard, templates, admin session
     const base = `http://127.0.0.1:${webPort}`;
     assert.equal((await fetch(base)).status, 200);
     assert.equal((await fetch(base + "/admin")).status, 200);
+    const connection = await (await fetch(base + "/api/connection")).json();
+    assert.deepEqual(Object.keys(connection).sort(), ["qr", "url"]);
+    assert.equal(connection.url, base + "/");
+    assert.match(connection.qr, /^data:image\/png;base64,/);
     assert.equal((await (await fetch(base + "/config")).json()).desk.ip, "127.0.0.1");
     const first = await connect(base.replace("http:", "ws:")); clients.push(first);
     const second = await connect(base.replace("http:", "ws:")); clients.push(second);
@@ -165,6 +169,10 @@ test("offline v2: discovery, scoped clients, dashboard, templates, admin session
     // and native v2 settings/preset APIs use the same session cookie.
     const password = "demo-admin-password";
     response = await request("/api/admin/password", "PUT", { password });
+    const trayConnection = await fetch(base + "/api/connection");
+    assert.equal(trayConnection.status, 200, "tray QR must work without an admin session");
+    assert.equal(trayConnection.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await trayConnection.json(), connection, "public QR must expose only connection information");
     assert.equal(response.status, 200);
     assert.match(response.headers.get("set-cookie"), /HttpOnly/);
     const setupSession = response.headers.get("set-cookie").split(";")[0];

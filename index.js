@@ -39,7 +39,7 @@ for(const [name, section] of [['OSC_WEBMIXER_WEB_PORT', 'server'], ['OSC_WEBMIXE
 let currentState = configManager.getCurrentStateOrDefault();
 
 // Configure logger to use settings from global config
-logger.configure(config.debug, false);
+logger.configure(config.debug, Boolean(process.env.OSC_WEBMIXER_SERVICE));
 
 /**
  * the osc.js UDP Listening Port
@@ -101,8 +101,6 @@ let server = null;
  */
 let wss = null;
 
-const mixServerIP = getMainIPAddress();
-
 
 /**
  * Load all plugins from the ./plugins directory
@@ -128,7 +126,7 @@ function loadPlugins() {
 			logger.warn(`Ignoring non-JS file "${file}" in plugin directory.`);
 			continue;
 		}
-		let plugin = require('./plugins/' + file);
+		let plugin = require(require('path').resolve('plugins', file));
 		plugins.push(new plugin());
 		logger.info(`Loaded plugin "${file}".`);
 	}
@@ -206,18 +204,19 @@ function startServer()
 	app.use(express.json());
 	adminAuth.register(app);
 	useTemplateRoutes(app);
+	// Only connection information, so the tray QR still works with an admin password.
+	app.get('/api/connection', async (req, res, next) => {
+		try { res.set('Cache-Control', 'no-store').json(await getConnectionInfo()); }
+		catch(error) { next(error); }
+	});
 	app.get('/api/admin/status', async (req, res) => {
 		const mix = getVisibleConfig();
 		const clients = connections.filter(socket => !socket.isObserver && socket.readyState === webSocket.OPEN);
 		const selectedAux = Number(req.query.aux);
 		if(loaded && mix.aux.some(aux => aux.channel === selectedAux)) warmAux(selectedAux);
-		const url = getServerURL() + '/';
-		if(qrURL !== url) {
-			qrURL = url;
-			qrImage = QRCode.toDataURL(url);
-		}
+		const connection = await getConnectionInfo();
 		res.json({
-			url, qr: await qrImage, loaded, snapshot: currentSnapshotName,
+			...connection, loaded, snapshot: currentSnapshotName,
 			connections: clients.length, authEnabled: false,
 			adminPasswordEnabled: adminAuth.isEnabled(),
 			clients: clients.map(socket => serializeClient(socket, null, mix)), disconnectedClients,
@@ -416,7 +415,7 @@ function startServer()
 		{
 			config.server = {};
 		}
-		config.server.ip = mixServerIP;
+		config.server.ip = getMainIPAddress() || '127.0.0.1';
 		res.json(config);
 	});
 
@@ -635,20 +634,31 @@ function startServer()
 		res.json(channelDetails);
 	});
 
-	logger.info(`Web Server Ready. Please visit ${getServerURL()}/admin in a web browser to configure OSC Web Mixer.`);
+	logger.info(`Web Server Ready. Please visit ${getServerURL()}/admin in a web browser to configure EarsMixer.`);
 	startWebSocketServer();
 }
 
 /**
  * Get the current server url
  */
+async function getConnectionInfo() {
+	const url = getServerURL() + '/';
+	if(qrURL !== url) {
+		qrURL = url;
+		qrImage = QRCode.toDataURL(url, { width: 320, margin: 2 });
+		qrImage.catch(() => { if(qrURL === url) qrURL = null; });
+	}
+	return { url, qr: await qrImage };
+}
+
 function getServerURL()
 {
 	if(process.env.OSC_WEBMIXER_PUBLIC_URL)
 	{
 		return process.env.OSC_WEBMIXER_PUBLIC_URL.replace(/\/$/, "");
 	}
-	let url = `http://${mixServerIP}`;
+	// A boot-time service may start before the network adapter has an address.
+	let url = `http://${getMainIPAddress() || '127.0.0.1'}`;
 	if(config.server.port != 80)
 	{
 		url += ":" + config.server.port;

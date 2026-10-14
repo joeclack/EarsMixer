@@ -1,6 +1,6 @@
 {
-  "name": "Glow UK Ears Mixer",
-  "short_name": "Ears Mixer",
+  "name": "EarsMixer",
+  "short_name": "EarsMixer",
   "icons": [
     {
       "src": "/images/icon.svg",

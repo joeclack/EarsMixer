@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Mock DiGiCo console for developing / debugging OSCWebMixer2 without real hardware.
+ * Mock DiGiCo console for developing / debugging EarsMixer without real hardware.
  *
  * It listens on the desk port and answers the OSC queries that index.js sends while
  * loading (channel count, aux modes, channel + aux names, snapshot, send levels and

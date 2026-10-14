@@ -22,13 +22,6 @@ $installers = @(Get-ChildItem -LiteralPath $ArtifactDirectory -Filter '*.exe' -F
 if ($installers.Count -ne 1) { throw 'Expected exactly one Windows installer in the downloaded artifact.' }
 $installer = $installers[0]
 
-# A version identifies its source commit. Rebuilds can resume a release, but new
-# source commits must bump AppVersion rather than publish beneath a stale tag.
-$tagCommit = & git rev-parse --verify "refs/tags/$tag^{commit}" 2>$null
-if ($LASTEXITCODE -eq 0 -and $tagCommit -ne $Commit) {
-    throw "Tag $tag already points to another commit. Bump AppVersion for the new release."
-}
-
 $existingJson = & gh release view $tag --repo $Repository --json isDraft,assets 2>$null
 if ($LASTEXITCODE -eq 0) {
     $release = ($existingJson -join "`n") | ConvertFrom-Json
@@ -40,9 +33,9 @@ else {
     $release = [pscustomobject]@{ isDraft = $true; assets = @() }
 }
 
-if (-not @($release.assets | Where-Object { $_.name -eq $installer.Name }).Count) {
-    Invoke-Gh @('release', 'upload', $tag, $installer.FullName, '--repo', $Repository)
-}
+# Each successful main build refreshes the installer for the current version.
+# Reuse the existing release/tag; --target applies only when creating a new tag.
+Invoke-Gh @('release', 'upload', $tag, $installer.FullName, '--repo', $Repository, '--clobber')
 
 if ($release.isDraft) {
     Invoke-Gh @('release', 'edit', $tag, '--repo', $Repository, '--draft=false', '--latest')

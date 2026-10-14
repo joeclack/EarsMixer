@@ -88,3 +88,30 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 30
+
+  release:
+    name: Publish Windows release
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: [build, windows-installer]
+    runs-on: windows-2025
+    permissions:
+      contents: write
+    concurrency:
+      group: earsmixer-release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Windows installer
+        uses: actions/download-artifact@v4
+        with:
+          name: EarsMixer-windows-installer
+          path: dist
+
+      - name: Publish versioned release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./tools/publish-windows-release.ps1 -Repository $env:GITHUB_REPOSITORY -Commit $env:GITHUB_SHA

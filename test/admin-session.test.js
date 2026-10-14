@@ -97,6 +97,13 @@ test("password setup, protected pages and native routes, sessions, and persisten
     const templateConfig = { selectedAux: 1, channelOrder: [1], favouritesByAux: {}, view: "list" };
     assert.equal((await request("/api/admin/templates", "PUT", { name: "Protected template", config: templateConfig }, firstSession)).status, 200);
     assert.equal((await request("/api/admin/templates", "PUT", {})).status, 401);
+    const protectedTemplate = (await (await request("/api/templates")).json()).templates.find(template => template.name === "Protected template");
+    const deleteRoute = "/api/admin/templates/" + protectedTemplate.id;
+    assert.equal((await request(deleteRoute, "DELETE", {})).status, 401);
+    assert.equal((await request(deleteRoute, "DELETE", {}, firstSession, { Origin: "http://other-site.example" })).status, 403);
+    assert.equal((await request("/api/templates/" + protectedTemplate.id)).status, 200);
+    assert.equal((await request(deleteRoute, "DELETE", {}, firstSession)).status, 200);
+    assert.equal((await request("/api/templates/" + protectedTemplate.id)).status, 404);
     assert.equal((await request("/api/admin/password", "DELETE", {})).status, 401);
     assert.equal((await request("/")).status, 200);
     assert.equal((await request("/api/templates")).status, 200);

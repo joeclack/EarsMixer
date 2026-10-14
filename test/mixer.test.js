@@ -80,6 +80,7 @@ function createMixer(source = mixerSource) {
   };
   const context = vm.createContext({
     document,
+    confirm: () => false,
     localStorage: {
       getItem: key => storage.get(key) || null,
       setItem: (key, value) => storage.set(key, String(value)),
@@ -159,6 +160,35 @@ test("each fader waits for its own finite value and ignores responses for anothe
   mixer.level(65, 2, -150);
   assert.equal(mixer.slider(65).disabled, false);
   assert.equal(mixer.slider(65).value, "0");
+});
+
+test("set all to zero dB requires confirmation and loaded channels, scopes writes to the selected AUX and clears pending drags", () => {
+  for (const source of [mixerSource, fs.readFileSync(path.join(__dirname, "../web/mixer.min.js"), "utf8")]) {
+    const mixer = createMixer(source);
+    const button = mixer.controls.get("zeroAllChannels");
+    assert.equal(button.disabled, true);
+    mixer.run("confirm = () => true");
+    button.dispatchEvent({ type: "click" });
+    assert.equal(mixer.writes().length, 0);
+    mixer.level(2, 2, -20); mixer.level(65, 2, -150);
+    assert.equal(button.disabled, false);
+    mixer.run("confirm = () => false");
+    button.dispatchEvent({ type: "click" });
+    assert.equal(mixer.writes().length, 0);
+    mixer.slider(2).value = "0.2";
+    mixer.slider(2).dispatchEvent({ type: "input" });
+    mixer.run("confirm = () => true");
+    mixer.controls.get("channels").children[1].hidden = true;
+    button.dispatchEvent({ type: "click" });
+    mixer.tick(100);
+    assert.deepEqual(mixer.writes().map(message => message.address).sort(), ["/Input_Channels/2/Aux_Send/2/send_level", "/Input_Channels/65/Aux_Send/2/send_level"]);
+    assert(mixer.writes().every(message => message.args[0] === 0));
+    assert.equal(mixer.controls.get("channels").children[0].querySelector(".level-readout").textContent, "63% / 0 dB");
+    mixer.socket().close();
+    assert.equal(button.disabled, true);
+    button.dispatchEvent({ type: "click" });
+    assert.equal(mixer.writes().length, 2);
+  }
 });
 
 test("native fader curve preserves dB values and the off endpoint", () => {

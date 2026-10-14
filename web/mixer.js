@@ -3,6 +3,7 @@
 const channelsDiv = document.getElementById("channels");
 const auxSelect = document.getElementById("aux");
 const favourites = document.getElementById("favourites");
+const zeroAllChannelsButton = document.getElementById("zeroAllChannels");
 const editLayoutButton = document.getElementById("editLayout");
 const layoutHint = document.getElementById("layoutHint");
 const emptyChannels = document.getElementById("emptyChannels");
@@ -93,6 +94,7 @@ function sendOSC(address, args = []) {
 }
 
 function updateMixStatus() {
+  zeroAllChannelsButton.disabled = !canZeroAllChannels();
   if (!ws || ws.readyState !== WebSocket.OPEN) { mixerStatus.textContent = "Connecting…"; return; }
   if (!mixerConfigReady) { mixerStatus.textContent = "Loading channels…"; return; }
   if (!auxSelect.value) { mixerStatus.textContent = "No mixes enabled"; return; }
@@ -117,6 +119,25 @@ function updateLevel(slider, level, db = null) {
   readout.title = valid ? "Send level: " + dbText + " dB" : "Waiting for the desk";
   slider.setAttribute("aria-valuetext", valid ? Math.round(value * 100) + " percent, " + (decibels <= -150 ? "off" : dbText + " decibels") : "Not loaded");
 }
+
+function canZeroAllChannels() {
+  return !editingLayout && ws?.readyState === WebSocket.OPEN && Boolean(auxSelect.value) && channelElements.size > 0 &&
+    Array.from(channelElements.values()).every(({ slider }) => slider.dataset.ready === "true");
+}
+
+zeroAllChannelsButton.addEventListener("click", () => {
+  if (!canZeroAllChannels()) return;
+  const aux = auxSelect.value;
+  const name = auxSelect.selectedOptions[0]?.textContent || "AUX " + aux;
+  if (!confirm('Set all ' + channelElements.size + ' enabled channels in “' + name + '” to 0 dB? This includes channels hidden by Favourites and may raise quiet or off sends.')) return;
+  if (aux !== auxSelect.value || !canZeroAllChannels()) return;
+  clearPendingWrites();
+  for (const { slider } of channelElements.values()) {
+    if (sendOSC("/Input_Channels/" + slider.dataset.channel + "/Aux_Send/" + aux + "/send_level", [0])) {
+      updateLevel(slider, dbToSlider(0), 0);
+    }
+  }
+});
 
 function clearPendingWrites() {
   for (const pending of pendingWrites.values()) clearTimeout(pending.timer);
@@ -343,6 +364,7 @@ function moveChannelWithKeys(event) {
 }
 
 function updateLayoutInputs() {
+  zeroAllChannelsButton.disabled = !canZeroAllChannels();
   const connected = ws && ws.readyState === WebSocket.OPEN;
   editLayoutButton.disabled = !channelsDiv.children.length;
   favourites.disabled = editingLayout || !channelsDiv.children.length;

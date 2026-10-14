@@ -42,6 +42,15 @@ test("personal templates roundtrip, attribution, concurrency, and safe persisten
     assert.equal((await fetch(base + "/api/templates/" + "f".repeat(64))).status, 404);
     const traversal = await (await save("../../Person")).json(); assert.match(traversal.id, /^[a-f0-9]{64}$/);
     assert(await fs.readFile(path.join(directory, "templates", traversal.id + ".json"), "utf8"));
+    const remove = id => fetch(base + "/api/admin/templates/" + id, { method: "DELETE" });
+    assert.equal((await remove("invalid")).status, 400);
+    assert.equal((await remove("f".repeat(64))).status, 404);
+    assert.equal((await remove(traversal.id)).status, 200);
+    assert.equal((await fetch(base + "/api/templates/" + traversal.id)).status, 404);
+    assert.equal((await (await fetch(base + "/api/templates")).json()).templates.some(template => template.id === traversal.id), false);
+    await assert.rejects(fs.readFile(path.join(directory, "templates", traversal.id + ".json")), { code: "ENOENT" });
+    assert.equal((await remove(traversal.id)).status, 404);
+    assert.equal((await fetch(base + "/api/templates/" + first.id)).status, 200);
     await fs.writeFile(diskPath, "corrupt original");
     assert.equal((await save("Joe Clack")).status, 500); assert.equal(await fs.readFile(diskPath, "utf8"), "corrupt original");
     assert((await fs.readdir(path.join(directory, "templates"))).every(file => file.endsWith(".json")));

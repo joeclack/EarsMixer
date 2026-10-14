@@ -28,6 +28,7 @@ function updateAdminTemplateControls() {
   const selected = adminTemplates.find(template => template.id === adminTemplateSelect.value);
   document.getElementById("editSavedTemplate").disabled = adminTemplateBusy || !selected || !templateChannels.length;
   document.getElementById("newTemplate").disabled = adminTemplateBusy || !templateChannels.length || !templateAuxes.length;
+  document.getElementById("deleteSavedTemplate").disabled = adminTemplateBusy || !selected;
   adminTemplateSelect.disabled = adminTemplateBusy || !adminTemplates.length;
   document.getElementById("templateFields").disabled = adminTemplateBusy || !templateAuxes.length;
   if (templateSorter) templateSorter.option("disabled", adminTemplateBusy);
@@ -112,6 +113,27 @@ document.getElementById("editSavedTemplate").addEventListener("click", async () 
   adminTemplateBusy = true; updateAdminTemplateControls();
   try { const template = await adminTemplateRequest("/api/templates/" + adminTemplateSelect.value, { cache: "no-store" }); showTemplateDraft(template.name, template.config); adminTemplateMessage(""); }
   catch (error) { adminTemplateMessage(error.message, true); }
+  finally { adminTemplateBusy = false; updateAdminTemplateControls(); }
+});
+document.getElementById("deleteSavedTemplate").addEventListener("click", async () => {
+  const selected = adminTemplates.find(template => template.id === adminTemplateSelect.value);
+  if (!selected || adminTemplateBusy) return;
+  if (!confirm('Delete template “' + selected.name + '”? This cannot be undone. Layouts already loaded by users will not change.')) return;
+  adminTemplateBusy = true; updateAdminTemplateControls(); adminTemplateMessage("");
+  try {
+    await adminTemplateRequest("/api/admin/templates/" + selected.id, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: "{}" });
+    adminTemplates = adminTemplates.filter(template => template.id !== selected.id);
+    const option = Array.from(adminTemplateSelect.options).find(option => option.value === selected.id);
+    if (option) option.remove();
+    adminTemplateSelect.value = "";
+    if (templateNameInput.value.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase() === selected.name.toLowerCase()) {
+      templateDraft = null; templateEditor.hidden = true;
+      if (templateSorter) { templateSorter.destroy(); templateSorter = null; }
+    }
+    adminTemplateMessage('Deleted “' + selected.name + '”.');
+    try { await refreshAdminTemplates(""); }
+    catch { adminTemplateMessage("Template deleted, but the list could not refresh. Reload the admin page to refresh it."); }
+  } catch (error) { adminTemplateMessage(error.message, true); }
   finally { adminTemplateBusy = false; updateAdminTemplateControls(); }
 });
 adminTemplateSelect.addEventListener("change", updateAdminTemplateControls);

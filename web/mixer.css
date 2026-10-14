@@ -20,7 +20,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .disconnected .mixer-status { color: #edbd80; }
 .mixer-brand .snapshot-name { margin-left: 8px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; font-size: 12px; font-weight: 400; color: #a8afb9; }
 .toolbar-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; flex: 1 1 auto; }
-.favourites-toggle, #editLayout, #compactMode { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; border-radius: 7px; padding: 7px 10px; border: 1px solid #3a404b; background: #20242b; color: #d1d6de; font-size: 12px; white-space: nowrap; }
+.favourites-toggle, #editLayout, #compactMode, #zeroAllChannels { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; border-radius: 7px; padding: 7px 10px; border: 1px solid #3a404b; background: #20242b; color: #d1d6de; font-size: 12px; white-space: nowrap; }
 .favourites-toggle { cursor: pointer; }
 .favourites-toggle input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 .favourites-toggle:has(input:checked) { background: #323a48; border-color: #7383a0; color: #fff; }

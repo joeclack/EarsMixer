@@ -6,6 +6,8 @@ const favourites = document.getElementById("favourites");
 const zeroAllChannelsButton = document.getElementById("zeroAllChannels");
 const editLayoutButton = document.getElementById("editLayout");
 const layoutHint = document.getElementById("layoutHint");
+const layoutEditor = document.getElementById("layoutEditor");
+const doneLayoutButton = document.getElementById("doneLayout");
 const emptyChannels = document.getElementById("emptyChannels");
 let ws = null;
 let reconnectTimer = null;
@@ -22,18 +24,47 @@ const mixerStatus = document.getElementById("mixerStatus");
 const snapshotName = document.getElementById("snapshot");
 const WRITE_INTERVAL_MS = 35;
 
+const mixerControls = document.getElementById("mixerControls");
+const controlsToggle = document.getElementById("controlsToggle");
+const controlsFan = document.getElementById("controlsFan");
+const controlsBackdrop = document.getElementById("controlsBackdrop");
+let controlsOpen = false;
+
+function setControlsOpen(open, restoreFocus = false) {
+  controlsOpen = open;
+  mixerControls.classList.toggle("is-open", open);
+  controlsToggle.setAttribute("aria-expanded", String(open));
+  controlsToggle.setAttribute("aria-label", open ? "Close mixer controls" : "Open mixer controls");
+  controlsFan.inert = !open;
+  controlsBackdrop.hidden = !open;
+  if (restoreFocus) controlsToggle.focus();
+}
+
+controlsToggle.addEventListener("click", () => setControlsOpen(!controlsOpen));
+controlsBackdrop.addEventListener("click", () => setControlsOpen(false, true));
+controlsFan.addEventListener("click", event => {
+  const button = event.target.closest("button");
+  if (button) setControlsOpen(false, button.id !== "editUsername");
+});
+document.getElementById("profileDialog").addEventListener("close", () => controlsToggle.focus());
+favourites.addEventListener("change", () => setControlsOpen(false, true));
+document.addEventListener("focusin", event => {
+  if (controlsOpen && !mixerControls.contains(event.target)) setControlsOpen(false);
+});
+
 const enterFullscreenButton = document.getElementById("enterFullscreen");
 const exitFullscreenButton = document.getElementById("exitFullscreen");
 
 function setFullscreenMode(active) {
   document.body.classList.toggle("fullscreen-mode", active);
+  enterFullscreenButton.hidden = active;
   exitFullscreenButton.hidden = !active;
-  if (active) exitFullscreenButton.focus();
-  else enterFullscreenButton.focus();
+  setControlsOpen(false);
+  controlsToggle.focus();
 }
 
 enterFullscreenButton.addEventListener("click", async () => {
-  // Keep the faders usable when the layout controls disappear.
+  // Finish reordering before entering the mixer-only view.
   if (editingLayout) editLayoutButton.click();
   enterFullscreenButton.disabled = true;
   try {
@@ -64,6 +95,11 @@ async function exitFullscreenMode() {
 exitFullscreenButton.addEventListener("click", exitFullscreenMode);
 document.addEventListener("fullscreenchange", () => setFullscreenMode(Boolean(document.fullscreenElement)));
 document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && controlsOpen) {
+    event.preventDefault();
+    setControlsOpen(false, true);
+    return;
+  }
   if (event.key === "Escape" && document.body.classList.contains("fullscreen-mode") && !document.fullscreenElement) {
     exitFullscreenMode();
   }
@@ -390,18 +426,23 @@ channelsDiv.addEventListener("change", event => {
   applyFavourites();
 
 });
-editLayoutButton.addEventListener("click", () => {
+function setEditingLayout(active) {
   clearPendingWrites();
-  editingLayout = !editingLayout;
+  editingLayout = active;
   if (channelSorter) channelSorter.option("disabled", !editingLayout);
   document.body.classList.toggle("editing-layout", editingLayout);
   editLayoutButton.innerHTML = appIcon(editingLayout ? "check" : "pencil") + '<span>' + (editingLayout ? "Done" : "Edit layout") + '</span>';
   editLayoutButton.setAttribute("aria-pressed", String(editingLayout));
-  layoutHint.hidden = !editingLayout;
+  layoutEditor.hidden = !editingLayout;
   updateSortingMode();
   document.getElementById("listView").disabled = editingLayout;
   document.getElementById("gridView").disabled = editingLayout;
   updateLayoutInputs(); applyFavourites();
+}
+editLayoutButton.addEventListener("click", () => setEditingLayout(!editingLayout));
+doneLayoutButton.addEventListener("click", () => {
+  if (editingLayout) setEditingLayout(false);
+  controlsToggle.focus();
 });
 
 function startWebsocket() {

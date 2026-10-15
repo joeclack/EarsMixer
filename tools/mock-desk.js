@@ -81,13 +81,13 @@ const AUX_COUNT = parseInt(args.auxes ?? args.auxilaries ?? 6, 10);
 
 const CHANNEL_NAMES = [
 	"Kick", "Snare Top", "Snare Btm", "Hi Hat", "Rack Tom", "Floor Tom",
-	"OH L", "OH R", "Bass DI", "Bass Mic", "Gtr Stage L", "Gtr Stage R",
-	"Acoustic", "Keys L", "Keys R", "Click", "Playback L", "Playback R",
-	"Lead Vox", "BV 1", "BV 2", "BV 3", "Talkback", "Amb L", "Amb R"
+	"OH L", "OH R", "Bass", "Gtr 1", "Gtr 2",
+	"Acoustic", "Keys", "MD", "Click", "Track",
+	"Vox 1", "Vox 2", "Vox 3", "Vox 4", "MC"
 ];
 const AUX_NAMES = [
-	"Drums IEM", "Bass IEM", "Gtr IEM", "Keys IEM", "Vox IEM", "MD Mix",
-	"Wedge 1", "Wedge 2", "Side Fill", "Sub"
+	"Drums IEM", "Bass IEM", "Gtr IEM", "Keys IEM", "Vox 1 IEM", "MD Mix",
+	"Vox 2 IEM","Vox 3 IEM","Vox 4 IEM"
 ];
 
 /**
@@ -100,7 +100,7 @@ const state = {
 	channelName: (n) => CHANNEL_NAMES[(n - 1) % CHANNEL_NAMES.length] || `Channel ${n}`,
 	auxName: (n) => AUX_NAMES[(n - 1) % AUX_NAMES.length] || `Aux ${n}`,
 	snapshotIndex: 1,
-	snapshotNames: ["Default", "Walk In", "Band 1", "Support", "Headliner", "Walk Out"],
+	snapshotNames: ["Default", "Sunday Service", "Band 1", "Support", "Headliner", "Walk Out"],
 	// live send level (dB) / pan (0..1) values, keyed by OSC address, lazily defaulted
 	sends: new Map()
 };

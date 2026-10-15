@@ -14,6 +14,7 @@ const { createAdminAuth } = require('./lib/admin-session.js');
 const { useTemplateRoutes, deviceUsername } = require('./lib/templates.js');
 const { dbToSlider, panToCentered, colourToRGB } = require('./lib/mix-values.js');
 const { QueryQueue } = require('./lib/query-queue.js');
+const { normalizeMixerUrl } = require('./lib/mixer-url.js');
 let adminAuth;
 let discoveryTimer = null;
 let nextClientId = 1;
@@ -216,7 +217,7 @@ function startServer()
 		if(loaded && mix.aux.some(aux => aux.channel === selectedAux)) warmAux(selectedAux);
 		const connection = await getConnectionInfo();
 		res.json({
-			...connection, loaded, snapshot: currentSnapshotName,
+			...connection, customMixerUrl: config.server.publicUrl || "", loaded, snapshot: currentSnapshotName,
 			connections: clients.length, authEnabled: false,
 			adminPasswordEnabled: adminAuth.isEnabled(),
 			clients: clients.map(socket => serializeClient(socket, null, mix)), disconnectedClients,
@@ -224,6 +225,22 @@ function startServer()
 			channels: mix.channels,
 			mixLevels: Object.fromEntries(mix.aux.map(aux => [aux.channel, getClientLevels(aux.channel, mix.channels)]))
 		});
+	});
+
+	app.put('/api/admin/mixer-url', async (req, res) => {
+		let publicUrl;
+		try { publicUrl = normalizeMixerUrl(req.body?.url); }
+		catch(error) { res.status(400).json({ error: error.message }); return; }
+		try {
+			const connection = await getConnectionInfo(publicUrl || getServerURL());
+			const nextConfig = { ...config, server: { ...config.server, publicUrl } };
+			configManager.saveGlobalConfig(nextConfig);
+			config = nextConfig;
+			res.json({ ...connection, customMixerUrl: publicUrl });
+		} catch(error) {
+			logger.error('Mixer URL save failed: ' + error.message);
+			res.status(500).json({ error: 'Could not save the mixer URL. Please try again.' });
+		}
 	});
 
 	// Apply no-cache policy for admin endpoints to prevent stale browser state
@@ -641,8 +658,8 @@ function startServer()
 /**
  * Get the current server url
  */
-async function getConnectionInfo() {
-	const url = getServerURL() + '/';
+async function getConnectionInfo(publicUrl = config.server.publicUrl || getServerURL()) {
+	const url = publicUrl.replace(/\/$/, '') + '/';
 	if(qrURL !== url) {
 		qrURL = url;
 		qrImage = QRCode.toDataURL(url, { width: 320, margin: 2 });

@@ -34,6 +34,8 @@ Set the server computer's mixer network to **Private** in Windows. The installer
 
 The default web port is **80**. The tray's browser links and QR code follow the configured port automatically. A link showing `127.0.0.1` means the server computer does not yet have a network address; connect it to the mixer network and the QR window will refresh.
 
+If your network has a DNS name for the mixer, enter it in **Admin → Overview → Mixer URL → Custom URL** and click **Save URL**. For example, `ears.glow.uk` becomes `http://ears.glow.uk/`; you can also enter a full HTTPS URL or include a port, such as `http://ears.glow.uk:8082`. The mixer link and QR codes in the dashboard and tray use this saved address after restarts. DNS must already resolve the name to the server; a DNS record alone does not change the web port. Clear the field and save to return to the server address.
+
 ## Use the service manager
 
 The tray icon appears in the notification area at the right of the Windows taskbar; it may be inside the hidden-icons menu.
@@ -49,7 +51,21 @@ The service is named **EarsMixer** in Windows Services. It starts automatically 
 
 Musicians can choose list or grid views, reorder channels, save favourites and use compact or fullscreen controls. Layout preferences are saved per AUX on each browser/device.
 
+**Phone mixer** — compact mode keeps channel names, faders and favourites on one row, with the controls menu in the bottom-left corner:
+
+<img src="docs/screenshots/mixer-phone.jpg" alt="EarsMixer in compact mode at phone size, with channel names, faders and favourites on one row" width="320">
+
+**iPad mixer** — landscape grid view shows channels side by side in three columns:
+
+![EarsMixer at iPad landscape size, showing channel faders and favourites in a three-column grid](docs/screenshots/mixer-ipad.jpg)
+
 The admin dashboard provides connected-device status, activity history, a read-only live mix, channel/AUX configuration and starting templates for musicians. Templates save layout preferences, including channel order and favourites; loading one does not recall fader levels on the console.
+
+The admin overview, showing connection status, client counts and the mixer QR code:
+
+![EarsMixer admin dashboard with connection status, client and channel counts, and a QR code for joining the mixer](docs/screenshots/admin-dashboard.jpg)
+
+Screenshots use the offline demo with sample console data. The mixer is shown at phone (393 × 852) and iPad landscape (1180 × 820) viewport sizes.
 
 To protect the dashboard, open **Admin → Config** and set an admin password of at least eight characters. Musicians can still access the mixer, and the tray QR code continues to work. Restarting the server clears admin sign-in sessions, so administrators will need to sign in again.
 
@@ -86,13 +102,17 @@ npm ci
 npm run dev
 ```
 
-The offline demo opens at [localhost:8082](http://127.0.0.1:8082/) with 20 mock channels and eight AUXes. Its [admin dashboard](http://127.0.0.1:8082/admin) uses the same app as the installed version. The demo uses isolated settings in `config/demo/` and does not connect to a physical console. Ctrl+C stops it.
+The offline demo listens on all network interfaces on port **8082** and prints mixer and admin links using your computer's LAN IP, so phones and tablets on the same network can connect. It also works at [localhost:8082](http://127.0.0.1:8082/), with the admin dashboard at `/admin`. It has 20 mock channels and eight AUXes and uses the same app as the installed version. The demo uses isolated settings in `config/demo/` and does not connect to a physical console. Ctrl+C stops it.
+
+Set `OSC_WEBMIXER_PUBLIC_URL` to override the advertised links and QR code, for example if your computer has multiple network adapters. Set `OSC_WEBMIXER_DEV_BIND_ADDRESS=127.0.0.1` to restrict the demo to this computer.
 
 Run `npm test` to check the app and `npm run build` to regenerate its minified web assets.
 
 To build the installer locally on Windows, install Inno Setup 6.7 or newer and run `npm run installer:windows`. The build uses the Windows .NET Framework C# compiler and downloads its packaging runtime and service wrapper when needed. Set `ISCC_PATH` or `CSC_PATH` if the build tools are installed in custom locations. The installer is written to `dist/`.
 
-Product metadata and the installer version are defined in [`installer/version.inc.iss`](installer/version.inc.iss). GitHub Actions builds and tests the app. Successful pushes to `main`, or manual runs on `main`, attach the installer to the release tagged with that version, such as `v1.0.0`, and mark it as latest. Builds using the same version replace its installer; change `AppVersion` to publish a separate version. Pull requests build downloadable artifacts without publishing a release.
+The npm installer build stops if your Windows account has a saved Inno Setup commercial licence key, so it cannot pick up a licence belonging to another project or organisation. Use GitHub Actions or a separate Windows build account without a saved key. The check leaves your existing Inno licence unchanged. Compiling directly in the Inno Setup IDE bypasses this project check and uses that IDE's licence settings.
+
+Product metadata and the installer version are defined in [`installer/version.inc.iss`](installer/version.inc.iss). GitHub Actions builds and tests the app. Successful pushes to `main`, or manual runs on `main`, attach the installer to the release tagged with that version, such as `v1.1.0`, and mark it as latest. Builds using the same version replace its installer; change `AppVersion` to publish a separate version. Pull requests build downloadable artifacts without publishing a release. The Node package follows its upstream version series separately. See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## Credits and licence
 

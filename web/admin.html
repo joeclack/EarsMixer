@@ -89,6 +89,14 @@
                   <a id="mixerUrl" href="/" target="_blank" rel="noopener"></a>
                   <button type="button" id="copyUrl"><svg class="app-icon" aria-hidden="true" focusable="false"><use href="vendor/lucide.svg#copy"></use></svg> Copy</button>
                 </div>
+                <form id="mixerUrlForm" class="mixer-url-form">
+                  <label class="password-field" for="customMixerUrl">Custom URL
+                    <input id="customMixerUrl" name="url" type="text" inputmode="url" autocomplete="url" spellcheck="false" maxlength="2048" placeholder="http://ears.glow.uk" aria-describedby="mixerUrlHint" />
+                  </label>
+                  <p id="mixerUrlHint" class="muted">Used for the mixer link and QR code. Include a port if needed. Leave blank to use the server address.</p>
+                  <button id="saveMixerUrl" type="submit">Save URL</button>
+                  <p id="mixerUrlMessage" class="muted" role="status" aria-live="polite"></p>
+                </form>
                 <div class="qr-wrap">
                   <img id="qrCode" alt="QR code for mixer URL" />
                 </div>
@@ -102,10 +110,6 @@
                 </p>
                 <div class="live-toolbar">
                   <label class="mix-choice"><span>View mix</span><select id="auxMenu" aria-label="View AUX mix"></select></label>
-                  <div class="view-toggle" role="group" aria-label="Channel view">
-                    <button id="adminListView" type="button" aria-label="List view" title="List view" aria-pressed="true"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#list"></use></svg></button>
-                    <button id="adminGridView" type="button" aria-label="Grid view" title="Grid view" aria-pressed="false"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#grid2x2"></use></svg></button>
-                  </div>
                 </div>
                 <details class="foldable" id="liveMixFold">
                   <summary id="liveMixSummary">Live sends</summary>

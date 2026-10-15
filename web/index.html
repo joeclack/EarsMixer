@@ -12,9 +12,9 @@
     <meta name="theme-color" content="#191c21" />
     <meta
       name="apple-mobile-web-app-status-bar-style"
-      content="black-translucent"
+      content="black"
     />
-    <link rel="stylesheet" href="mixer.min.css" />
+    <link rel="stylesheet" href="mixer.min.css?v=2.6.0" />
     <link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon" />
     <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
     <link
@@ -59,29 +59,38 @@
     />
     <link rel="apple-touch-startup-image" href="/images/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
-    <link rel="stylesheet" href="icons.css" />
   </head>
   <body class="disconnected">
     <header id="mix">
       <div class="mixer-brand"><img src="/images/logo.svg" alt="Glow"><span>EarsMixer</span><span id="snapshot" class="snapshot-name" hidden></span></div>
-      <div class="mixer-header-controls"><label class="mix-choice"><span>Your mix</span><select id="aux" aria-label="Your AUX mix" disabled></select></label><button id="editUsername" type="button" title="Open profile" aria-label="Open profile"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#userRound"></use></svg><span id="deviceUsernameLabel">Profile</span></button></div>
+      <div class="mixer-header-controls"><label class="mix-choice"><span>Your mix</span><select id="aux" aria-label="Your AUX mix" disabled></select></label></div>
     </header>
     <div class="mixer-toolbar">
       <span id="mixerStatus" class="mixer-status" role="status" aria-live="polite">Connecting…</span>
-      <div class="toolbar-actions">
-        <button id="enterFullscreen" type="button" aria-label="Enter fullscreen" title="Enter fullscreen"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#maximize"></use></svg></button>
+    </div>
+    <div id="mixerControls" class="mixer-controls">
+      <div id="controlsBackdrop" class="controls-backdrop" hidden></div>
+      <button id="controlsToggle" class="controls-toggle" type="button" aria-expanded="false" aria-controls="controlsFan" aria-label="Open mixer controls" title="Mixer controls"><svg class="app-icon controls-open-icon" aria-hidden="true"><use href="vendor/lucide.svg#slidersHorizontal"></use></svg><svg class="app-icon controls-close-icon" aria-hidden="true"><use href="vendor/lucide.svg#x"></use></svg></button>
+      <div id="controlsFan" class="controls-fan" role="group" aria-label="Mixer controls" inert>
+        <div class="fan-action fan-fullscreen">
+          <button id="enterFullscreen" type="button" aria-label="Enter fullscreen" title="Enter fullscreen"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#maximize"></use></svg><span>Full screen</span></button>
+          <button id="exitFullscreen" type="button" aria-label="Exit fullscreen" title="Exit fullscreen" hidden><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#minimize"></use></svg><span>Exit fullscreen</span></button>
+        </div>
+        <button id="zeroAllChannels" class="fan-action fan-zero" type="button" disabled title="Set every enabled channel in this AUX mix to 0 dB, including channels hidden by Favourites"><strong>0 dB</strong><span>Set all to 0</span></button>
+        <button id="compactMode" class="fan-action fan-compact" type="button" aria-pressed="false"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#moveHorizontal"></use></svg><span>Compact</span></button>
+        <label class="favourites-toggle fan-action fan-favourites"><input id="favourites" type="checkbox"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#star"></use></svg><span>Favourites</span></label>
+        <button id="editLayout" class="fan-action fan-edit" type="button" aria-pressed="false" disabled><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#pencil"></use></svg><span>Edit layout</span></button>
+        <button id="editUsername" class="fan-action fan-profile" type="button" title="Open profile" aria-label="Open profile"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#userRound"></use></svg><span id="deviceUsernameLabel">Profile</span></button>
         <div class="view-toggle" role="group" aria-label="Channel view">
           <button id="listView" type="button" aria-label="List view" title="List view" aria-pressed="true"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#list"></use></svg></button>
           <button id="gridView" type="button" aria-label="Grid view" title="Grid view" aria-pressed="false"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#grid2x2"></use></svg></button>
         </div>
-        <button id="zeroAllChannels" type="button" disabled title="Set every enabled channel in this AUX mix to 0 dB, including channels hidden by Favourites">Set all to 0 dB</button>
-        <button id="compactMode" type="button" aria-pressed="false"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#moveHorizontal"></use></svg><span>Compact</span></button>
-        <label class="favourites-toggle"><input id="favourites" type="checkbox"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#star"></use></svg><span>Favourites</span></label>
-        <button id="editLayout" type="button" aria-pressed="false" disabled><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#pencil"></use></svg><span>Edit layout</span></button>
       </div>
     </div>
-    <button id="exitFullscreen" type="button" aria-label="Exit fullscreen" title="Exit fullscreen" hidden><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#minimize"></use></svg><span>Exit fullscreen</span></button>
-    <p id="layoutHint" hidden>Drag to reorder.</p>
+    <div id="layoutEditor" class="layout-editor" role="region" aria-label="Layout editing" hidden>
+      <div><strong>Editing layout</strong><p id="layoutHint">Drag to reorder.</p></div>
+      <button id="doneLayout" type="button"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#check"></use></svg>Done</button>
+    </div>
     <main id="channelsWrap" aria-label="Mix channels">
       <div id="channels"></div>
       <p id="emptyChannels" hidden>No favourites yet. Turn off Favourites to star channels.</p>
@@ -90,7 +99,7 @@
       <div class="settings-dialog-header"><div><h2 id="profileTitle">Your profile</h2></div><button id="closeProfile" type="button" aria-label="Close profile"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#x"></use></svg></button></div>
       <form id="usernameForm" class="settings-section"><label for="deviceUsername">Your username</label><input id="deviceUsername" maxlength="80" required autocomplete="nickname"><p id="usernameError" class="settings-detail" role="alert"></p><p id="usernameSaved" class="settings-detail" role="status" hidden></p><div class="dialog-actions"><button type="submit">Save username</button><button id="skipUsername" type="button" hidden>Skip for now</button></div></form>
       <div id="profileTemplates">
-      <section class="settings-section"><label for="savedTemplate">Template</label><select id="savedTemplate" disabled><option value="">Loading templates…</option></select><p id="templateUpdated" class="settings-detail"></p><button id="loadTemplate" type="button" disabled><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#download"></use></svg>Load template</button><button id="retryTemplates" type="button" hidden>Retry loading templates</button></section>
+      <section class="settings-section"><p id="layoutDescription" class="settings-detail">Choose a pre-made layout designed for your role, with the most relevant channels at the top so they’re easy to find.</p><label for="savedTemplate">Template</label><select id="savedTemplate" aria-describedby="layoutDescription" disabled><option value="">Loading templates…</option></select><p id="templateUpdated" class="settings-detail"></p><button id="loadTemplate" type="button" disabled><svg class="app-icon" width="20" height="20" aria-hidden="true"><use href="vendor/lucide.svg#download"></use></svg>Load template</button><button id="retryTemplates" type="button" hidden>Retry loading templates</button></section>
       <section class="settings-section"><p class="settings-detail">Starting fresh resets your layout and favourites. Settings stay on this device until browser storage is cleared or resets.</p><button id="startFresh" type="button">Start fresh</button></section>
       <p id="templateMessage" role="status" aria-live="polite"></p>
       </div>
@@ -98,7 +107,7 @@
     <script src="vendor/Sortable.min.js"></script>
     <script src="icons.js"></script>
     <script src="identity.js"></script>
-    <script src="mixer.min.js"></script>
+    <script src="mixer.min.js?v=2.6.0"></script>
     <script src="templates.js"></script>
   </body>
 </html>

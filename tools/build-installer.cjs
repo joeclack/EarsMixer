@@ -5,6 +5,24 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const root = path.resolve(__dirname, "..");
 
+function assertNoSavedInnoLicense(runProcess = spawnSync) {
+    // Check value names only: never read or print another project's commercial key.
+    const command = "$ErrorActionPreference = 'Stop'; " +
+        "$licensePath = 'Registry::HKEY_CURRENT_USER\\Software\\Jordan Russell\\Inno Setup\\License'; " +
+        "if (Test-Path -LiteralPath $licensePath) { " +
+        "if ((Get-Item -LiteralPath $licensePath).GetValueNames() -contains 'LicenseKey') { exit 10 } }; exit 0";
+    const result = runProcess("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command],
+        { windowsHide: true, stdio: "ignore" });
+    if (result.error || ![0, 10].includes(result.status)) {
+        throw new Error("Could not check the Windows account's saved Inno Setup licence. Installer build stopped.");
+    }
+    if (result.status === 10) {
+        throw new Error("This Windows account has a saved Inno Setup commercial licence. " +
+            "EarsMixer will not use it. Build using GitHub Actions or a separate Windows account without a saved Inno key. " +
+            "Your existing licence has not been changed.");
+    }
+}
+
 function run(command, args) {
     const result = spawnSync(command, args, { cwd: root, stdio: "inherit" });
     if (result.error) throw result.error;
@@ -13,6 +31,7 @@ function run(command, args) {
 
 async function main() {
     if (process.platform !== "win32") throw new Error("Build the Inno Setup installer on Windows.");
+    assertNoSavedInnoLicense();
     const candidates = [
         process.env.ISCC_PATH,
         path.join(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "Inno Setup 6", "ISCC.exe"),
@@ -37,4 +56,5 @@ async function main() {
     console.log(`Installer output directory: ${path.join(root, "dist")}`);
 }
 
-main().catch(error => { console.error(error.message); process.exitCode = 1; });
+module.exports = { assertNoSavedInnoLicense };
+if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });

@@ -11,6 +11,8 @@ const { spawn } = require("node:child_process");
 const { once } = require("node:events");
 const WebSocket = require("ws");
 const osc = require("osc");
+const QRCode = require("qrcode");
+const { getMainIPAddress } = require("../lib/utils/utils.js");
 
 async function availablePort(udp = false) {
   const socket = udp ? dgram.createSocket("udp4") : net.createServer();
@@ -42,21 +44,27 @@ async function connect(url) {
 test("offline v2: discovery, scoped clients, dashboard, templates, admin sessions and shutdown", { timeout: 30000 }, async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "earsmixer-demo-"));
   const webPort = await availablePort();
+  const publicBase = `http://${getMainIPAddress() || "127.0.0.1"}:${webPort}`;
   const oscPort = await availablePort(true);
   let deskPort = await availablePort(true);
   while (deskPort === oscPort) deskPort = await availablePort(true);
-  const child = spawn(process.execPath, ["tools/dev.cjs"], {
-    cwd: path.resolve(__dirname, ".."),
-    env: { ...process.env, OSC_WEBMIXER_DEV_CONFIG_DIR: directory,
-      OSC_WEBMIXER_DEV_WEB_PORT: String(webPort), OSC_WEBMIXER_DEV_OSC_PORT: String(oscPort),
-      OSC_WEBMIXER_DEV_DESK_PORT: String(deskPort),
-      OSC_WEBMIXER_DEV_VERBOSE: "1",
-      OSC_WEBMIXER_DEV_DROP_QUERY_ONCE: "/Input_Channels/3/Channel_Input/name/?" },
-    stdio: ["ignore", "pipe", "pipe", "ipc"]
-  });
   let output = "";
-  child.stdout.on("data", chunk => { output += chunk; });
-  child.stderr.on("data", chunk => { output += chunk; });
+  function startDemo() {
+    const demoProcess = spawn(process.execPath, ["tools/dev.cjs"], {
+      cwd: path.resolve(__dirname, ".."),
+      env: { ...process.env, OSC_WEBMIXER_DEV_CONFIG_DIR: directory,
+        OSC_WEBMIXER_DEV_WEB_PORT: String(webPort), OSC_WEBMIXER_DEV_OSC_PORT: String(oscPort),
+        OSC_WEBMIXER_DEV_DESK_PORT: String(deskPort),
+        OSC_WEBMIXER_DEV_BIND_ADDRESS: "", OSC_WEBMIXER_PUBLIC_URL: "",
+        OSC_WEBMIXER_DEV_VERBOSE: "1",
+        OSC_WEBMIXER_DEV_DROP_QUERY_ONCE: "/Input_Channels/3/Channel_Input/name/?" },
+      stdio: ["ignore", "pipe", "pipe", "ipc"]
+    });
+    demoProcess.stdout.on("data", chunk => { output += chunk; });
+    demoProcess.stderr.on("data", chunk => { output += chunk; });
+    return demoProcess;
+  }
+  let child = startDemo();
   const clients = [];
   let probe;
   try {
@@ -68,12 +76,15 @@ test("offline v2: discovery, scoped clients, dashboard, templates, admin session
     const base = `http://127.0.0.1:${webPort}`;
     assert.equal((await fetch(base)).status, 200);
     assert.equal((await fetch(base + "/admin")).status, 200);
+    assert.equal((await fetch(publicBase)).status, 200, "demo must be reachable through the advertised LAN IP");
+    assert.equal((await fetch(publicBase + "/admin")).status, 200);
+    assert(output.includes(`Demo mixer: ${publicBase}\nAdmin: ${publicBase}/admin`));
     const connection = await (await fetch(base + "/api/connection")).json();
     assert.deepEqual(Object.keys(connection).sort(), ["qr", "url"]);
-    assert.equal(connection.url, base + "/");
+    assert.equal(connection.url, publicBase + "/");
     assert.match(connection.qr, /^data:image\/png;base64,/);
     assert.equal((await (await fetch(base + "/config")).json()).desk.ip, "127.0.0.1");
-    const first = await connect(base.replace("http:", "ws:")); clients.push(first);
+    const first = await connect(publicBase.replace("http:", "ws:")); clients.push(first);
     const second = await connect(base.replace("http:", "ws:")); clients.push(second);
     assert.equal(first.config.channels.length, 20);
     assert.equal(first.config.aux.length, 8);
@@ -123,7 +134,7 @@ test("offline v2: discovery, scoped clients, dashboard, templates, admin session
     assert.equal(dashboard.connections, 3, "observer sockets must not appear as mixer clients");
     assert.equal(new Set(dashboard.clients.map(client => client.id)).size, 3);
     assert.equal(dashboard.loaded, true);
-    assert.equal(dashboard.url, base + "/");
+    assert.equal(dashboard.url, publicBase + "/");
     assert.match(dashboard.qr, /^data:image\/png;base64,/);
     assert.equal(dashboard.channels.length, 20);
     assert.equal(dashboard.aux.length, 8);
@@ -141,6 +152,7 @@ test("offline v2: discovery, scoped clients, dashboard, templates, admin session
     const secondMessageCount = second.messages.length;
     first.socket.send(JSON.stringify({ address: level, args: [-5] }));
     await waitFor(() => third.messages.find(message => message.address === level && message.args[0] === -5), "same-AUX update");
+    await waitFor(() => observer.messages.find(message => message.address === level && message.args[0] === -5), "live admin observer update");
     await new Promise(resolve => setTimeout(resolve, 100));
     assert(!second.messages.slice(secondMessageCount).some(message => message.address === level && message.args[0] === -5),
       "clients viewing another AUX must not receive this send update");
@@ -185,6 +197,7 @@ test("offline v2: discovery, scoped clients, dashboard, templates, admin session
       assert.equal(response.headers.get("location"), "/admin-login.html", route);
     }
     assert.equal((await request("/api/admin/templates", "PUT", { name: "Unauthenticated", config: templateConfig })).status, 401);
+    assert.equal((await request("/api/admin/mixer-url", "PUT", { url: "ears.glow.uk" })).status, 401);
     assert.equal((await request("/api/presets/save-current-state", "POST", { name: "Unauthenticated" })).status, 401);
     assert.equal((await request("/api/presets/example/load", "POST", {})).status, 401);
     assert.equal((await request("/api/presets/example", "DELETE", {})).status, 401);
@@ -276,6 +289,44 @@ test("offline v2: discovery, scoped clients, dashboard, templates, admin session
     assert.equal(afterSession.config.aux.length, 8);
     afterSession.socket.send(JSON.stringify({ address: level + "/?", args: [] }));
     assert.equal((await waitFor(() => afterSession.messages.find(message => message.address === level), "fresh session value")).args[0], -8);
+
+    // Custom URLs change only advertised links and QR codes, preserving the listener and desk settings.
+    const globalPath = path.join(directory, "global.json");
+    const beforeCustomUrl = await fs.readFile(globalPath, "utf8");
+    for (const invalid of [null, "javascript:alert(1)", "https://user:password@ears.glow.uk", "https://ears.glow.uk/mixer"]) {
+      assert.equal((await request("/api/admin/mixer-url", "PUT", { url: invalid })).status, 400);
+      assert.equal(await fs.readFile(globalPath, "utf8"), beforeCustomUrl);
+    }
+    assert.equal((await fetch(base + "/api/admin/mixer-url", {
+      method: "PUT", headers: { "Content-Type": "application/json", Origin: "http://other-site.example" },
+      body: JSON.stringify({ url: "ears.glow.uk" }),
+    })).status, 403);
+    let customUrlResponse = await request("/api/admin/mixer-url", "PUT", { url: "ears.glow.uk" });
+    assert.equal(customUrlResponse.status, 200);
+    const customConnection = await customUrlResponse.json();
+    assert.equal(customConnection.customMixerUrl, "http://ears.glow.uk");
+    assert.equal(customConnection.url, "http://ears.glow.uk/");
+    assert.equal(customConnection.qr, await QRCode.toDataURL(customConnection.url, { width: 320, margin: 2 }));
+    assert.equal((await status()).customMixerUrl, "http://ears.glow.uk");
+    assert.deepEqual(await (await request("/api/connection")).json(), { url: customConnection.url, qr: customConnection.qr });
+    const savedWithCustomUrl = JSON.parse(await fs.readFile(globalPath, "utf8"));
+    assert.equal(savedWithCustomUrl.server.publicUrl, "http://ears.glow.uk");
+    assert.equal(savedWithCustomUrl.server.port, webPort);
+    assert.deepEqual(savedWithCustomUrl.desk, { ip: "127.0.0.1", port: deskPort });
+
+    const exited = once(child, "exit");
+    child.send({ type: "stop" });
+    await exited;
+    output = "";
+    child = startDemo();
+    await waitFor(() => output.includes("Webmixer ready to use."), "demo restart with saved custom URL");
+    assert(output.includes("Demo mixer: http://ears.glow.uk"));
+    assert.equal((await status()).customMixerUrl, "http://ears.glow.uk");
+    assert.deepEqual(await (await request("/api/connection")).json(), { url: customConnection.url, qr: customConnection.qr });
+    customUrlResponse = await request("/api/admin/mixer-url", "PUT", { url: "" });
+    assert.equal(customUrlResponse.status, 200);
+    assert.equal((await customUrlResponse.json()).url, publicBase + "/");
+    assert.equal((await status()).customMixerUrl, "");
   } catch (error) {
     error.message += "\n" + output;
     throw error;

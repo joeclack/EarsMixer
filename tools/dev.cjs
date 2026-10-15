@@ -4,9 +4,12 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
+const { getMainIPAddress } = require("../lib/utils/utils.js");
 
 const root = path.resolve(__dirname, "..");
 const configDirectory = process.env.OSC_WEBMIXER_DEV_CONFIG_DIR || path.join(root, "config", "demo");
+const configPath = path.join(configDirectory, "global.json");
+const savedConfig = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, "utf8")) : {};
 function port(name, fallback) {
   const value = Number(process.env[name] || fallback);
   if (!Number.isInteger(value) || value < 1 || value > 65535) throw new Error(`${name} must be a port between 1 and 65535.`);
@@ -16,13 +19,15 @@ const webPort = port("OSC_WEBMIXER_DEV_WEB_PORT", 8082);
 const oscPort = port("OSC_WEBMIXER_DEV_OSC_PORT", 8012);
 const deskPort = port("OSC_WEBMIXER_DEV_DESK_PORT", 9012);
 if (oscPort === deskPort) throw new Error("The mock desk and server need different UDP ports.");
-const bindAddress = process.env.OSC_WEBMIXER_DEV_BIND_ADDRESS || '127.0.0.1';
-const url = process.env.OSC_WEBMIXER_PUBLIC_URL || `http://127.0.0.1:${webPort}`;
+const bindAddress = process.env.OSC_WEBMIXER_DEV_BIND_ADDRESS || "0.0.0.0";
+const publicAddress = bindAddress === "0.0.0.0" ? (getMainIPAddress() || "127.0.0.1") : bindAddress;
+const url = process.env.OSC_WEBMIXER_PUBLIC_URL || `http://${publicAddress}:${webPort}`;
 
 fs.mkdirSync(configDirectory, { recursive: true });
-fs.writeFileSync(path.join(configDirectory, "global.json"), JSON.stringify({
+fs.writeFileSync(configPath, JSON.stringify({
+  ...savedConfig,
   debug: false,
-  server: { port: webPort },
+  server: { ...savedConfig.server, port: webPort },
   osc: { port: oscPort },
   desk: { ip: "127.0.0.1", port: deskPort },
   externalDevices: []
@@ -56,7 +61,8 @@ const startupTimeout = setTimeout(() => {
   stop(1);
 }, 10000);
 
-console.log(`Demo mixer: ${url}\nAdmin: ${url}/admin\n20 channels / 8 AUXes. Ctrl+C stops both processes.`);
+const mixerUrl = savedConfig.server?.publicUrl || url;
+console.log(`Demo mixer: ${mixerUrl}\nAdmin: ${url}/admin\n20 channels / 8 AUXes. Ctrl+C stops both processes.`);
 const mock = launch("tools/mock-desk.js", [
   "--host", "127.0.0.1", "--port", String(deskPort), "--reply-port", String(oscPort),
   "--channels", "20", "--auxes", "8",

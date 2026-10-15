@@ -10,6 +10,9 @@ const channelCountEl = document.getElementById("channelCount");
 const mixerUrlEl = document.getElementById("mixerUrl");
 const copyUrlBtn = document.getElementById("copyUrl");
 const qrCodeEl = document.getElementById("qrCode");
+const customMixerUrlEl = document.getElementById("customMixerUrl");
+const saveMixerUrlEl = document.getElementById("saveMixerUrl");
+const mixerUrlMessageEl = document.getElementById("mixerUrlMessage");
 const auxTableEl = document.getElementById("auxTable");
 const channelTableEl = document.getElementById("channelTable");
 const clientsListEl = document.getElementById("clientsList");
@@ -45,9 +48,18 @@ const pageTitles = {
 const logIcons = { aux: appIcon("headphones"), level: appIcon("volume2"), pan: appIcon("moveHorizontal") };
 
 const foldableOpen = new Map();
+const liveChannelElements = new Map();
+const statusLiveUpdates = new Map();
 
 let statusLoading = false;
+let deskReady = false;
+let liveMixSocket = null;
+let liveMixReconnectTimer = null;
+let liveMixConnectTimer = null;
 let currentUrl = "";
+let mixerUrlDirty = false;
+let mixerUrlSaving = false;
+let mixerUrlRevision = 0;
 let auxOptions = [];
 let mixLevels = {};
 let selectedAux = sessionStorage.getItem("adminSelectedAux");
@@ -90,6 +102,7 @@ function showPage(page) {
   });
 
   closeAdminNavigation();
+  syncLiveMixStream();
   document.dispatchEvent(new CustomEvent("admin-page-changed", { detail: { page } }));
   if (page === "live-mix") void loadStatus();
 }
@@ -379,6 +392,7 @@ function renderAuxMenu() {
 }
 
 function renderLiveMixChannels(levels, stereo) {
+  liveChannelElements.clear();
   if (!levels) {
     liveMixChannelsEl.innerHTML = '<p class="muted">Waiting for desk values…</p>';
     return;
@@ -393,27 +407,116 @@ function renderLiveMixChannels(levels, stereo) {
   liveMixChannelsEl.innerHTML = visibleLevels
     .map((entry) => {
       const levelPercent = levelPercentage(entry.level);
+      const channelLabel = escapeHtml(entry.label || `Ch ${entry.channel}`);
       const panStyle =
         Number.isFinite(entry.pan) ? `${Math.round((Math.max(-1, Math.min(1, entry.pan)) + 1) * 50)}%` : "50%";
 
-      return `<div class="live-channel">
-        <label class="mixer-fader volume" style="--value: ${levelPercent}%">
-          <span>${escapeHtml(entry.label || `Ch ${entry.channel}`)}</span>
+      return `<div class="live-channel" data-channel="${Number(entry.channel)}">
+        <div class="mixer-fader volume" style="--value: ${levelPercent}%">
+          <span title="${channelLabel}">${channelLabel}</span>
+          <div class="fader-track" role="meter" aria-label="${channelLabel} send level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${levelPercent}"><div class="fader-fill"></div><div class="fader-thumb"></div></div>
           <span class="level-readout">${levelPercent}%</span>
-          <div class="fader-track" role="meter" aria-label="Send level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${levelPercent}"><div class="fader-fill"></div><div class="fader-thumb"></div></div>
-        </label>
+        </div>
         ${
           stereo
-            ? `<label class="mixer-fader pan-display${showPan ? "" : " hidden"}" style="--value: ${panStyle}">
-          <span>${escapeHtml(entry.label || `Ch ${entry.channel}`)}</span>
+            ? `<div class="mixer-fader pan-display${showPan ? "" : " hidden"}" style="--value: ${panStyle}">
+          <span>Pan</span>
           <div class="pan-track"></div>
           <span class="pan-readout">${formatPan(entry.pan)}</span>
-        </label>`
+        </div>`
             : ""
         }
       </div>`;
     })
     .join("");
+  for (const row of liveMixChannelsEl.querySelectorAll(".live-channel")) {
+    liveChannelElements.set(row.dataset.channel, row);
+  }
+}
+
+function parseLiveMixUpdate(message) {
+  if (!message || typeof message.address !== "string" || !Array.isArray(message.args)) return null;
+  const match = message.address.match(/^\/Input_Channels\/(\d+)\/Aux_Send\/(\d+)\/send_(level|pan)$/);
+  const value = message.args[0];
+  if (!match || !Number.isFinite(value)) return null;
+  return {
+    channel: Number(match[1]), aux: Number(match[2]), field: match[3],
+    value: match[3] === "level"
+      ? (value <= -150 ? 0 : Math.max(0, Math.min(1, Math.pow(100, (value + 90) / 100) / 100)))
+      : Math.max(-1, Math.min(1, value * 2 - 1)),
+  };
+}
+
+function applyLiveMixUpdate(levels, update) {
+  const entry = levels?.[update.aux]?.find(entry => Number(entry.channel) === update.channel);
+  if (entry) entry[update.field] = update.value;
+  return entry;
+}
+
+function receiveLiveMixMessage(event) {
+  let message;
+  try { message = JSON.parse(event.data); } catch { return; }
+  if (message?.address === "/MixReload") { void loadStatus(); return; }
+  const update = parseLiveMixUpdate(message);
+  if (!update) return;
+  const entry = applyLiveMixUpdate(mixLevels, update);
+  if (!entry) return;
+  // A status response may have been captured before this newer streamed value.
+  if (statusLoading) statusLiveUpdates.set(message.address, update);
+  if (String(update.aux) !== String(selectedAux)) return;
+  const row = liveChannelElements.get(String(update.channel));
+  if (!row) {
+    const aux = auxOptions.find(aux => Number(aux.channel) === update.aux);
+    if (aux && entry.level != null) renderLiveMixChannels(mixLevels[update.aux], aux.stereo);
+    return;
+  }
+  if (update.field === "level") {
+    const percent = levelPercentage(entry.level);
+    row.querySelector(".volume").style.setProperty("--value", `${percent}%`);
+    row.querySelector(".fader-track").setAttribute("aria-valuenow", String(percent));
+    row.querySelector(".level-readout").textContent = `${percent}%`;
+  } else {
+    const pan = row.querySelector(".pan-display");
+    if (pan) {
+      pan.style.setProperty("--value", `${Math.round((entry.pan + 1) * 50)}%`);
+      row.querySelector(".pan-readout").textContent = formatPan(entry.pan);
+    }
+  }
+}
+
+function stopLiveMixStream() {
+  clearTimeout(liveMixReconnectTimer);
+  clearTimeout(liveMixConnectTimer);
+  liveMixReconnectTimer = null;
+  const socket = liveMixSocket;
+  liveMixSocket = null;
+  if (socket) socket.close();
+}
+
+function syncLiveMixStream() {
+  if (currentPage !== "live-mix" || !deskReady) { stopLiveMixStream(); return; }
+  if (liveMixSocket || liveMixReconnectTimer) return;
+  const socket = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/?role=observer");
+  liveMixSocket = socket;
+  socket.onopen = () => {
+    if (liveMixSocket !== socket) return;
+    clearTimeout(liveMixConnectTimer);
+    void loadStatus(); // Reconcile any changes missed while disconnected.
+  };
+  socket.onmessage = event => { if (liveMixSocket === socket) receiveLiveMixMessage(event); };
+  socket.onerror = () => socket.close();
+  socket.onclose = () => {
+    if (liveMixSocket !== socket) return;
+    clearTimeout(liveMixConnectTimer);
+    liveMixSocket = null;
+    liveMixReconnectTimer = setTimeout(() => {
+      liveMixReconnectTimer = null;
+      syncLiveMixStream();
+    }, 1000);
+  };
+  liveMixConnectTimer = setTimeout(() => {
+    if (liveMixSocket === socket && socket.readyState === WebSocket.CONNECTING) socket.close();
+  }, 3000);
 }
 
 function renderLiveMix() {
@@ -448,7 +551,16 @@ function selectAux(channel) {
   if (currentPage === "live-mix") void loadStatus();
 }
 
-function renderStatus(data) {
+function renderMixerConnection(data) {
+  currentUrl = data.url;
+  mixerUrlEl.href = data.url;
+  mixerUrlEl.textContent = data.url;
+  qrCodeEl.src = data.qr;
+  if (!mixerUrlDirty && !mixerUrlSaving) customMixerUrlEl.value = data.customMixerUrl || "";
+}
+
+function renderStatus(data, updateMixerUrl = true) {
+  deskReady = !!data.loaded;
   loadingEl.hidden = true;
   errorEl.hidden = true;
   contentEl.hidden = false;
@@ -459,7 +571,7 @@ function renderStatus(data) {
   deskSnapshot.hidden = data.snapshot == null || data.snapshot === "";
   deskSnapshot.textContent = deskSnapshot.hidden ? "" : "Snapshot: " + String(data.snapshot);
 
-  currentUrl = data.url;
+  if (updateMixerUrl) renderMixerConnection(data);
   connectionsEl.textContent = String(data.connections);
   authStatusEl.textContent = data.adminPasswordEnabled ? "Enabled" : "Disabled";
   renderAdminPassword(!!data.adminPasswordEnabled);
@@ -484,13 +596,10 @@ function renderStatus(data) {
 
   renderAuxMenu();
   renderLiveMix();
+  syncLiveMixStream();
 
   renderClients(data.clients || [], data.disconnectedClients || []);
   document.dispatchEvent(new CustomEvent("admin-mixer-config", { detail: { channels: data.channels, aux: data.aux } }));
-
-  mixerUrlEl.href = data.url;
-  mixerUrlEl.textContent = data.url;
-  qrCodeEl.src = data.qr;
 
   auxTableEl.innerHTML = data.aux
     .map(
@@ -515,13 +624,17 @@ function renderStatus(data) {
 async function loadStatus() {
   if (statusLoading) return;
   statusLoading = true;
+  const requestMixerUrlRevision = mixerUrlRevision;
+  statusLiveUpdates.clear();
   try {
     const query = currentPage === "live-mix" && selectedAux ? "?aux=" + encodeURIComponent(selectedAux) : "";
     const response = await adminFetch("/api/admin/status" + query);
     if (!response.ok) {
       throw new Error("Request failed");
     }
-    renderStatus(await response.json());
+    const data = await response.json();
+    for (const update of statusLiveUpdates.values()) applyLiveMixUpdate(data.mixLevels, update);
+    renderStatus(data, requestMixerUrlRevision === mixerUrlRevision);
   } catch {
     loadingEl.hidden = true;
     contentEl.hidden = true;
@@ -531,6 +644,41 @@ async function loadStatus() {
     statusLoading = false;
   }
 }
+
+customMixerUrlEl.addEventListener("input", () => {
+  mixerUrlDirty = true;
+  mixerUrlMessageEl.textContent = "";
+});
+
+document.getElementById("mixerUrlForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  if (mixerUrlSaving) return;
+  mixerUrlSaving = true;
+  customMixerUrlEl.disabled = true;
+  saveMixerUrlEl.disabled = true;
+  mixerUrlMessageEl.textContent = "Saving…";
+  mixerUrlMessageEl.classList.remove("error");
+  try {
+    const response = await adminFetch("/api/admin/mixer-url", {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: customMixerUrlEl.value }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not save the mixer URL.");
+    mixerUrlRevision++;
+    mixerUrlDirty = false;
+    customMixerUrlEl.value = data.customMixerUrl;
+    renderMixerConnection(data);
+    mixerUrlMessageEl.textContent = "Mixer link and QR code updated.";
+  } catch (error) {
+    mixerUrlMessageEl.textContent = error.message || "Could not save the mixer URL. Please try again.";
+    mixerUrlMessageEl.classList.toggle("error", true);
+  } finally {
+    mixerUrlSaving = false;
+    customMixerUrlEl.disabled = false;
+    saveMixerUrlEl.disabled = false;
+  }
+});
 
 copyUrlBtn.addEventListener("click", async () => {
   if (!currentUrl) {
@@ -584,6 +732,7 @@ showPage(currentPage);
 bindFoldable(liveMixFoldEl, "adminLiveMixFold");
 loadStatus();
 setInterval(loadStatus, 2000);
+window.addEventListener("pagehide", stopLiveMixStream);
 window.addEventListener("pageshow", event => {
   if (event.persisted) { contentEl.hidden = true; void loadStatus(); }
 });
@@ -600,15 +749,5 @@ function closeAdminNavigation() {
 }
 document.getElementById("sidebarBackdrop").addEventListener("click", closeAdminNavigation);
 document.addEventListener("keydown", event => { if (event.key === "Escape") closeAdminNavigation(); });
-const adminListView = document.getElementById("adminListView");
-const adminGridView = document.getElementById("adminGridView");
-function setAdminView(view) {
-  const grid = view === "grid";
-  document.body.classList.toggle("grid-view", grid);
-  adminListView.setAttribute("aria-pressed", String(!grid)); adminGridView.setAttribute("aria-pressed", String(grid));
-}
-adminListView.addEventListener("click", () => { localStorage.setItem("adminChannelView", "list"); setAdminView("list"); });
-adminGridView.addEventListener("click", () => { localStorage.setItem("adminChannelView", "grid"); setAdminView("grid"); });
-setAdminView(localStorage.getItem("adminChannelView") || "list");
 
 document.addEventListener("desk-settings-saved", () => { void loadStatus(); });

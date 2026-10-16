@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.2.0 — 2026-10-16
+
+Windows product version: **1.2.0**. Node package version: **2.6.0**.
 
 - The Windows tray checks GitHub for updates at startup and every six hours, with a manual check, a notification, release notes and an optional installer download. Installation remains manual.
 - The tray embeds the Windows product version from installer metadata, so update checks follow release tags independently of the Node package version.

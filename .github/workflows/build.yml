@@ -81,6 +81,7 @@ jobs:
         run: npm run installer:windows
 
       - name: Test Windows installer upgrades
+        timeout-minutes: 5
         shell: pwsh
         run: |
           $installer = @(Get-ChildItem dist/*-windows-x64-setup.exe)

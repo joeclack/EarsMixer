@@ -31,6 +31,8 @@ function Assert-True([bool]$Condition, [string]$Message) {
 }
 
 function Invoke-Setup([string]$Name, [string[]]$ExtraArguments = @(), [bool]$ExpectSuccess = $true) {
+    Write-Host "Starting installer check: $Name"
+    $elapsed = [Diagnostics.Stopwatch]::StartNew()
     $log = Join-Path $logDirectory "$Name.log"
     $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', "/LOG=`"$log`"") + $ExtraArguments
     $process = Start-Process -FilePath $Installer -ArgumentList $arguments -WindowStyle Hidden -PassThru
@@ -40,9 +42,11 @@ function Invoke-Setup([string]$Name, [string[]]$ExtraArguments = @(), [bool]$Exp
     }
     $process.Refresh()
     Assert-True (($process.ExitCode -eq 0) -eq $ExpectSuccess) "Unexpected installer exit $($process.ExitCode): $Name. See $log"
+    Write-Host ("Completed {0} in {1:N1}s (exit {2})." -f $Name, $elapsed.Elapsed.TotalSeconds, $process.ExitCode)
 }
 
 function Assert-Running {
+    Write-Host 'Checking the service and mixer web response...'
     $service = Get-Service EarsMixer
     $service.WaitForStatus('Running', [TimeSpan]::FromSeconds(30))
     $servicePath = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\EarsMixer').ImagePath
@@ -51,7 +55,7 @@ function Assert-Running {
     do {
         try {
             $response = Invoke-WebRequest 'http://127.0.0.1:18081/' -TimeoutSec 2 -UseBasicParsing
-            if ($response.StatusCode -eq 200) { return }
+            if ($response.StatusCode -eq 200) { Write-Host 'Service is running and the mixer responds.'; return }
         } catch { Start-Sleep -Milliseconds 250 }
     } while ([DateTime]::UtcNow -lt $deadline)
     throw 'The installed mixer did not respond after the update.'
@@ -114,11 +118,13 @@ try {
 } finally {
     $uninstaller = Join-Path $installDirectory 'unins000.exe'
     if (Test-Path -LiteralPath $uninstaller) {
+        Write-Host 'Uninstalling the test installation...'
         $process = Start-Process -FilePath $uninstaller -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -WindowStyle Hidden -PassThru
         if (-not $process.WaitForExit(120000)) { throw 'Test uninstall timed out.' }
         $process.Refresh()
         Assert-True ($process.ExitCode -eq 0) 'Test uninstall failed.'
         Assert-True (-not (Get-Service EarsMixer -ErrorAction SilentlyContinue)) 'Uninstall left the service registered.'
         Assert-True (Test-Path -LiteralPath $dataDirectory) 'Uninstall removed saved data.'
+        Write-Host 'Test cleanup completed; saved data was retained.'
     }
 }

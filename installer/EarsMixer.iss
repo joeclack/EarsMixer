@@ -11,7 +11,7 @@ AppPublisher={#AppPublisher}
 AppPublisherURL={#AppURL}
 AppSupportURL={#AppURL}
 DefaultDirName={autopf}\EarsMixer
-UsePreviousAppDir=no
+UsePreviousAppDir=yes
 DefaultGroupName={#AppName}
 UsePreviousGroup=no
 DisableProgramGroupPage=yes
@@ -36,10 +36,11 @@ Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription
 Name: "traystartup"; Description: "Show the EarsMixer tray icon when signing in"; GroupDescription: "Startup:"
 
 [Files]
+; Extracted during upgrade preparation, before any installed binaries are replaced.
+Source: "..\dist\windows\EarsMixerTray.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\windows\{#AppExe}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\windows\EarsMixerService.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "EarsMixerService.xml"; DestDir: "{app}"; Flags: onlyifdoesntexist
-Source: "..\dist\windows\EarsMixerTray.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\windows\WinSW-LICENSE.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\web\images\favicon.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
@@ -95,13 +96,34 @@ begin
   if Result then Result := ExitCode = 0;
 end;
 
+function CheckInstalledVersion(RootKey: Integer): String;
+var
+  InstalledVersion: String;
+  Installed, Incoming: Int64;
+begin
+  Result := '';
+  // This key follows the stable AppId above, including before the product rename.
+  if RegQueryStringValue(RootKey,
+    'Software\Microsoft\Windows\CurrentVersion\Uninstall\{A42F9674-2894-41BA-8BA6-729771736A80}_is1',
+    'DisplayVersion', InstalledVersion) then
+  begin
+    if StrToVersion(InstalledVersion, Installed) and StrToVersion('{#AppVersion}', Incoming) then
+      if ComparePackedVersion(Installed, Incoming) > 0 then
+        Result := 'EarsMixer ' + InstalledVersion + ' is already installed. This installer contains ' +
+          '{#AppVersion}. Use the same version or a newer installer to update EarsMixer.';
+  end;
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   Wrapper: String;
 begin
-  Result := '';
-  if FileExists(ExpandConstant('{app}\EarsMixerTray.exe')) then
-    RunChecked(ExpandConstant('{app}\EarsMixerTray.exe'), '--exit');
+  Result := CheckInstalledVersion(HKLM64);
+  if Result = '' then Result := CheckInstalledVersion(HKLM32);
+  if Result <> '' then Exit;
+  // Reset on each attempt in case the user retries preparation.
+  LegacyInstallDir := '';
+  MigrateLegacyServiceConfig := False;
   if RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\EarsMixer') then
   begin
     if not RegQueryStringValue(HKLM, 'SYSTEM\CurrentControlSet\Services\EarsMixer', 'ImagePath', Wrapper) then
@@ -113,11 +135,12 @@ begin
     LegacyInstallDir := ExtractFileDir(Wrapper);
     MigrateLegacyServiceConfig := (CompareText(LegacyInstallDir, ExpandConstant('{app}')) <> 0) and
       not FileExists(ExpandConstant('{app}\EarsMixerService.xml'));
-    if FileExists(LegacyInstallDir + '\EarsMixerTray.exe') then
-      RunChecked(LegacyInstallDir + '\EarsMixerTray.exe', '--exit');
-    if not RunChecked(Wrapper, 'stopwait') then
-      Result := 'Cannot stop the EarsMixer service. Stop it in Windows Services and try again.';
   end;
+  // Use this release's helper, including when the old wrapper/config is missing.
+  // It waits for shutdown and succeeds if the service is already stopped/absent.
+  ExtractTemporaryFile('EarsMixerTray.exe');
+  if not RunChecked(ExpandConstant('{tmp}\EarsMixerTray.exe'), '--prepare-update') then
+    Result := 'Cannot close the EarsMixer tray or stop its service. Close the tray and stop the service in Windows Services, then try again.';
 end;
 
 // Copy legacy settings once, without overwriting settings at the new location.
@@ -161,7 +184,7 @@ end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 var
-  Home, Wrapper, Command, ServiceXML: String;
+  Home, Wrapper, Command, ServiceXML, ServiceXMLPath: String;
   LegacyXML: AnsiString;
 begin
   if CurStep <> ssPostInstall then Exit;
@@ -175,19 +198,20 @@ begin
     if not SaveStringToFile(Home + '\.earsmixer-migrated', 'Legacy settings migration checked.', False) then
       RaiseException('Cannot save the migration marker.');
   end;
-  // Retain custom service options when moving out of the old install directory.
+  // Retain custom options, including when upgrading in the legacy directory.
+  ServiceXMLPath := ExpandConstant('{app}\EarsMixerService.xml');
   if MigrateLegacyServiceConfig and FileExists(LegacyInstallDir + '\EarsMixerService.xml') then
-  begin
-    if not LoadStringFromFile(LegacyInstallDir + '\EarsMixerService.xml', LegacyXML) then
-      RaiseException('Cannot read the previous service configuration.');
-    ServiceXML := String(LegacyXML);
-    StringChangeEx(ServiceXML, 'OSCWebMixer2.exe', 'EarsMixer.exe', True);
-    StringChangeEx(ServiceXML, '%ProgramData%\OSCWebMixer2', '%ProgramData%\EarsMixer', True);
-    StringChangeEx(ServiceXML, ExpandConstant('{commonappdata}\OSCWebMixer2'), Home, True);
-    StringChangeEx(ServiceXML, 'Ears Mixer', 'EarsMixer', True);
+    ServiceXMLPath := LegacyInstallDir + '\EarsMixerService.xml';
+  if not LoadStringFromFile(ServiceXMLPath, LegacyXML) then
+    RaiseException('Cannot read the service configuration.');
+  ServiceXML := String(LegacyXML);
+  StringChangeEx(ServiceXML, 'OSCWebMixer2.exe', 'EarsMixer.exe', True);
+  StringChangeEx(ServiceXML, '%ProgramData%\OSCWebMixer2', '%ProgramData%\EarsMixer', True);
+  StringChangeEx(ServiceXML, ExpandConstant('{commonappdata}\OSCWebMixer2'), Home, True);
+  StringChangeEx(ServiceXML, 'Ears Mixer', 'EarsMixer', True);
+  if MigrateLegacyServiceConfig or (ServiceXML <> String(LegacyXML)) then
     if not SaveStringToFile(ExpandConstant('{app}\EarsMixerService.xml'), ServiceXML, False) then
       RaiseException('Cannot migrate the previous service configuration.');
-  end;
   // LocalService can write runtime data, without running the server as SYSTEM.
   if not RunChecked(ExpandConstant('{sys}\icacls.exe'), '"' + Home + '" /grant "*S-1-5-19:(OI)(CI)M" /T /Q') then
     RaiseException('Cannot grant the EarsMixer service access to its settings.');

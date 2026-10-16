@@ -16,6 +16,18 @@ async function download(url) {
     return Buffer.from(await response.arrayBuffer());
 }
 
+function productInfoSource(metadata = fs.readFileSync(path.join(root, "installer", "version.inc.iss"), "utf8")) {
+    const match = metadata.match(/^#define[ \t]+AppVersion[ \t]+"((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))"[ \t]*\r?$/m);
+    if (!match || match[1].split(".").some(part => Number(part) > 65534)) {
+        throw new Error("AppVersion must be major.minor.patch with components between 0 and 65534.");
+    }
+    const version = match[1];
+    return `// Generated from installer/version.inc.iss.\n` +
+        `[assembly: System.Reflection.AssemblyVersion("${version}.0")]\n` +
+        `[assembly: System.Reflection.AssemblyFileVersion("${version}.0")]\n` +
+        `namespace EarsMixer { internal static class ProductInfo { internal const string Version = "${version}"; } }\n`;
+}
+
 async function buildWindowsSupport() {
     if (process.platform !== "win32") throw new Error("Build the Windows service and tray on Windows.");
     fs.mkdirSync(output, { recursive: true });
@@ -32,15 +44,18 @@ async function buildWindowsSupport() {
     const compiler = process.env.CSC_PATH || path.join(process.env.WINDIR || "C:\\Windows",
         "Microsoft.NET", "Framework64", "v4.0.30319", "csc.exe");
     if (!fs.existsSync(compiler)) throw new Error("The .NET Framework C# compiler is missing. Set CSC_PATH to csc.exe.");
+    const productInfo = path.join(output, "ProductInfo.g.cs");
+    fs.writeFileSync(productInfo, productInfoSource());
     const result = spawnSync(compiler, ["/nologo", "/target:winexe", "/platform:anycpu", "/optimize+",
         "/reference:System.Windows.Forms.dll", "/reference:System.Drawing.dll",
         "/reference:System.ServiceProcess.dll", "/reference:System.Web.Extensions.dll",
         `/win32icon:${path.join(root, "web", "images", "favicon.ico")}`,
-        `/out:${path.join(output, "EarsMixerTray.exe")}`, path.join(root, "installer", "EarsMixerTray.cs")],
+        `/out:${path.join(output, "EarsMixerTray.exe")}`, path.join(root, "installer", "EarsMixerTray.cs"),
+        path.join(root, "installer", "EarsMixerUpdates.cs"), productInfo],
     { cwd: root, stdio: "inherit" });
     if (result.error) throw result.error;
     if (result.status !== 0) throw new Error(`Tray compilation failed (exit ${result.status}).`);
 }
 
-module.exports = { buildWindowsSupport };
+module.exports = { buildWindowsSupport, productInfoSource };
 if (require.main === module) buildWindowsSupport().catch(error => { console.error(error.message); process.exitCode = 1; });

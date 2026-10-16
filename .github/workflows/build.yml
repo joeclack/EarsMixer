@@ -80,6 +80,21 @@ jobs:
         # Product metadata comes from installer/version.inc.iss.
         run: npm run installer:windows
 
+      - name: Test Windows installer upgrades
+        shell: pwsh
+        run: |
+          $installer = @(Get-ChildItem dist/*-windows-x64-setup.exe)
+          if ($installer.Count -ne 1) { throw 'Expected one installer to test.' }
+          ./tools/test-installer-upgrade.ps1 -Installer $installer[0].FullName
+
+      - name: Upload installer test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: EarsMixer-installer-test-logs
+          path: dist/installer-smoke/*.log
+          if-no-files-found: ignore
+
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:

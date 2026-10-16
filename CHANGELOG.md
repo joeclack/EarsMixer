@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- The Windows tray checks GitHub for updates at startup and every six hours, with a manual check, a notification, release notes and an optional installer download. Installation remains manual.
+- The tray embeds the Windows product version from installer metadata, so update checks follow release tags independently of the Node package version.
+- Windows updates reuse the previous installation folder and preserve settings and custom service configuration. Same-version repairs are supported, and the updated installer refuses to replace a newer installed version.
+- Upgrade preparation uses the bundled helper to wait for the tray and service to stop, including when the service is already stopped or its previous wrapper files are missing.
+
 ## 1.1.0 — 2026-10-15
 
 Windows product version: **1.1.0**. Node package version: **2.6.0**.

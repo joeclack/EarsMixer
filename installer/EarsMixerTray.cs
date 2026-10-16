@@ -22,25 +22,33 @@ namespace EarsMixer
         [STAThread]
         private static int Main(string[] args)
         {
+            if (args.Length == 1 && args[0] == "--prepare-update")
+            {
+                // Setup runs this bundled copy from its temporary directory.
+                // Never show a dialog: silent installers must receive a failure code.
+                try
+                {
+                    if (!CloseTray()) return 1;
+                    using (var service = new ServiceController(ServiceName))
+                    {
+                        try { var state = service.Status; }
+                        catch (InvalidOperationException error)
+                        {
+                            var native = error.InnerException as System.ComponentModel.Win32Exception;
+                            if (native != null && native.NativeErrorCode == 1060) return 0;
+                            throw;
+                        }
+                    }
+                    ControlService("stop");
+                    return 0;
+                }
+                catch (Exception error) { Trace.WriteLine(error); return 1; }
+            }
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             if (args.Length == 1 && args[0] == "--exit")
             {
-                EventWaitHandle exit;
-                if (EventWaitHandle.TryOpenExisting(@"Local\EarsMixerTrayExit", out exit))
-                {
-                    using (exit) exit.Set();
-                    Mutex existing;
-                    if (Mutex.TryOpenExisting(@"Local\EarsMixerTray", out existing))
-                    {
-                        using (existing)
-                        {
-                            try { if (existing.WaitOne(6000)) existing.ReleaseMutex(); }
-                            catch (AbandonedMutexException) { existing.ReleaseMutex(); }
-                        }
-                    }
-                }
-                return 0;
+                return CloseTray() ? 0 : 1;
             }
             if (args.Length == 2 && args[0] == "--service-command")
             {
@@ -54,6 +62,25 @@ namespace EarsMixer
                 using (var tray = new TrayContext()) Application.Run(tray);
             }
             return 0;
+        }
+
+        private static bool CloseTray()
+        {
+            EventWaitHandle exit;
+            if (EventWaitHandle.TryOpenExisting(@"Local\EarsMixerTrayExit", out exit))
+                using (exit) exit.Set();
+            Mutex existing;
+            if (!Mutex.TryOpenExisting(@"Local\EarsMixerTray", out existing)) return true;
+            using (existing)
+            {
+                try
+                {
+                    if (!existing.WaitOne(6000)) return false;
+                    existing.ReleaseMutex();
+                }
+                catch (AbandonedMutexException) { existing.ReleaseMutex(); }
+            }
+            return true;
         }
 
         internal static void ControlService(string command)
@@ -141,14 +168,19 @@ namespace EarsMixer
     {
         private readonly NotifyIcon icon;
         private readonly System.Windows.Forms.Timer timer;
-        private readonly ToolStripMenuItem status, start, stop, restart;
+        private readonly ToolStripMenuItem status, start, stop, restart, checkUpdates, downloadUpdate, releaseNotes;
         private readonly ConnectionWindow window;
         private readonly EventWaitHandle exit = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\EarsMixerTrayExit");
-        private bool controlling;
+        private readonly CancellationTokenSource updateCancellation = new CancellationTokenSource();
+        private DateTime nextUpdateCheck = DateTime.UtcNow.AddSeconds(10);
+        private UpdateRelease availableUpdate;
+        private string notifiedVersion;
+        private bool controlling, checkingUpdates, exiting;
 
         internal TrayContext()
         {
             var menu = new ContextMenuStrip();
+            menu.Items.Add(new ToolStripMenuItem("EarsMixer " + ProductInfo.Version) { Enabled = false });
             status = new ToolStripMenuItem("Checking service...") { Enabled = false };
             menu.Items.Add(status);
             menu.Items.Add("Show mixer QR code", null, (s, e) => ShowConnection());
@@ -162,6 +194,12 @@ namespace EarsMixer
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("Open logs", null, (s, e) => OpenFolder("logs"));
             menu.Items.Add("Open settings and plugins", null, (s, e) => OpenFolder(""));
+            menu.Items.Add(new ToolStripSeparator());
+            checkUpdates = new ToolStripMenuItem("Check for updates...", null, async (s, e) => await CheckForUpdates(true));
+            downloadUpdate = new ToolStripMenuItem("Download update...", null, (s, e) => OpenUpdate(false)) { Visible = false };
+            releaseNotes = new ToolStripMenuItem("View release notes", null, (s, e) => OpenUpdate(true)) { Visible = false };
+            menu.Items.AddRange(new ToolStripItem[] { checkUpdates, downloadUpdate, releaseNotes });
+            menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("Exit tray (mixer keeps running)", null, (s, e) => ExitThread());
             string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "favicon.ico");
             icon = new NotifyIcon {
@@ -170,8 +208,13 @@ namespace EarsMixer
             };
             window = new ConnectionWindow();
             icon.DoubleClick += (s, e) => ShowConnection();
+            icon.BalloonTipClicked += (s, e) => ShowUpdate();
             timer = new System.Windows.Forms.Timer { Interval = 2000 };
-            timer.Tick += (s, e) => { if (exit.WaitOne(0)) ExitThread(); else RefreshStatus(); };
+            timer.Tick += async (s, e) => {
+                if (exit.WaitOne(0)) { ExitThread(); return; }
+                RefreshStatus();
+                if (DateTime.UtcNow >= nextUpdateCheck) await CheckForUpdates(false);
+            };
             timer.Start();
             RefreshStatus();
         }
@@ -184,6 +227,63 @@ namespace EarsMixer
         private void OpenFolder(string suffix)
         {
             try { Program.Open(Path.Combine(Program.Home, suffix)); } catch (Exception error) { Program.ShowError(error); }
+        }
+        private async Task CheckForUpdates(bool manual)
+        {
+            if (checkingUpdates || exiting) return;
+            checkingUpdates = true;
+            nextUpdateCheck = DateTime.UtcNow.AddHours(6);
+            checkUpdates.Enabled = false;
+            checkUpdates.Text = "Checking for updates...";
+            try
+            {
+                using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(updateCancellation.Token))
+                {
+                    timeout.CancelAfter(TimeSpan.FromSeconds(15));
+                    availableUpdate = await ReleaseChecker.CheckAsync(ProductInfo.Version, timeout.Token);
+                }
+                if (exiting) return;
+                downloadUpdate.Visible = releaseNotes.Visible = availableUpdate != null;
+                if (availableUpdate == null)
+                {
+                    if (manual) MessageBox.Show("EarsMixer " + ProductInfo.Version + " is installed. No newer Windows update is available.",
+                        "EarsMixer updates", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                downloadUpdate.Text = "Download EarsMixer " + availableUpdate.Version + "...";
+                if (manual) ShowUpdate();
+                else if (notifiedVersion != availableUpdate.Version)
+                {
+                    notifiedVersion = availableUpdate.Version;
+                    icon.ShowBalloonTip(8000, "EarsMixer update available",
+                        "Version " + availableUpdate.Version + " is available. Click to view the download.", ToolTipIcon.Info);
+                }
+            }
+            catch (Exception error)
+            {
+                // An offline mixer network must never interrupt the service or show background errors.
+                if (manual && !exiting) MessageBox.Show("Could not check GitHub for updates. Check your internet connection and try again later.\n\n" +
+                    error.GetBaseException().Message, "EarsMixer updates", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            finally
+            {
+                checkingUpdates = false;
+                if (!exiting) { checkUpdates.Enabled = true; checkUpdates.Text = "Check for updates..."; }
+            }
+        }
+        private void ShowUpdate()
+        {
+            if (availableUpdate == null || exiting) return;
+            if (MessageBox.Show("EarsMixer " + availableUpdate.Version + " is available. You have version " + ProductInfo.Version +
+                ".\n\nOpen the installer download in your browser? Run it when you are ready to update.",
+                "EarsMixer update available", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+                OpenUpdate(false);
+        }
+        private void OpenUpdate(bool notes)
+        {
+            if (availableUpdate == null || exiting) return;
+            try { Program.Open(notes ? availableUpdate.ReleaseUrl : availableUpdate.DownloadUrl); }
+            catch (Exception error) { Program.ShowError(error); }
         }
         private void RefreshStatus()
         {
@@ -227,6 +327,8 @@ namespace EarsMixer
         }
         protected override void ExitThreadCore()
         {
+            exiting = true;
+            updateCancellation.Cancel(); updateCancellation.Dispose();
             timer.Stop(); timer.Dispose();
             exit.Dispose();
             window.Dispose();

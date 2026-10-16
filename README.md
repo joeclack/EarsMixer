@@ -42,6 +42,7 @@ The tray icon appears in the notification area at the right of the Windows taskb
 
 - **Double-click** to show the QR code and copyable mixer link.
 - **Right-click** for service status, Start/Stop/Restart, the mixer, admin dashboard, logs and settings.
+- **Check for updates** checks GitHub for a newer Windows release. When available, **Download EarsMixer** opens its installer in your browser, and **View release notes** opens the release details.
 - Service changes request administrator permission through Windows.
 - Closing the QR window or choosing **Exit tray** leaves the mixer service running.
 
@@ -71,7 +72,9 @@ To protect the dashboard, open **Admin → Config** and set an admin password of
 
 ## Updates, settings and backups
 
-Download and run the latest installer to update EarsMixer. It stops the service before replacing files and starts it again afterwards. If you are switching from an older console-based installation, stop that server with Ctrl+C first.
+The tray checks GitHub shortly after starting and every six hours while it is running. A newer stable Windows release produces a tray notification with an optional download. You can also choose **Check for updates** at any time. Checks run in the background; an offline mixer network does not interrupt the service or show automatic error dialogs. Updates are never installed automatically: download the installer and run it when you are ready for the service to restart. Closing the tray stops update checks while the mixer service keeps running.
+
+Download and run the latest installer to update EarsMixer; you do not need to uninstall first. Setup reuses the previous installation folder, closes the tray, stops the service before replacing files and starts it again afterwards. Your settings, plugins, custom service XML and shortcut selections are retained. Running the same version again repairs the installation. The updated installer refuses to replace a newer installed version; installers released before this safeguard can still downgrade the app. If you are switching from an older console-based installation, stop that server with Ctrl+C first.
 
 Saved files are in `%PROGRAMDATA%\EarsMixer`:
 
@@ -113,6 +116,8 @@ To build the installer locally on Windows, install Inno Setup 6.7 or newer and r
 The npm installer build stops if your Windows account has a saved Inno Setup commercial licence key, so it cannot pick up a licence belonging to another project or organisation. Use GitHub Actions or a separate Windows build account without a saved key. The check leaves your existing Inno licence unchanged. Compiling directly in the Inno Setup IDE bypasses this project check and uses that IDE's licence settings.
 
 Product metadata and the installer version are defined in [`installer/version.inc.iss`](installer/version.inc.iss). GitHub Actions builds and tests the app. Successful pushes to `main`, or manual runs on `main`, attach the installer to the release tagged with that version, such as `v1.1.0`, and mark it as latest. Builds using the same version replace its installer; change `AppVersion` to publish a separate version. Pull requests build downloadable artifacts without publishing a release. The Node package follows its upstream version series separately. See [CHANGELOG.md](CHANGELOG.md) for release notes.
+
+The Windows tray embeds that same product version and compares it numerically against the latest published GitHub release tag. To notify existing installations of an update, increase `AppVersion` before publishing; rebuilding the same version does not trigger an update notification. Drafts, prereleases and releases without the matching Windows installer are not offered as updates.
 
 ## Credits and licence
 

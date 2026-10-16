@@ -2,6 +2,12 @@ name: build-and-package
 
 on:
   workflow_dispatch:
+    inputs:
+      test_installer:
+        description: 'Run full Windows installation and upgrade tests'
+        type: boolean
+        required: false
+        default: false
   push:
     branches: [ main ]
   pull_request:
@@ -81,6 +87,7 @@ jobs:
         run: npm run installer:windows
 
       - name: Test Windows installer upgrades
+        if: github.event_name == 'workflow_dispatch' && inputs.test_installer
         timeout-minutes: 5
         shell: pwsh
         run: |

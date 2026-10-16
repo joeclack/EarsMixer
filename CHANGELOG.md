@@ -4,6 +4,7 @@
 
 Windows product version: **1.2.1**. Node package version: **2.6.0**.
 
+- Full Windows installation and upgrade tests are opt-in for manual workflow runs, so ordinary builds and releases do not wait on installation tests.
 - Windows installer upgrade tests report progress and elapsed time for each installation stage, with a five-minute limit on the test step.
 
 ## 1.2.0 — 2026-10-16

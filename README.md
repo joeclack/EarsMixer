@@ -119,6 +119,8 @@ Product metadata and the installer version are defined in [`installer/version.in
 
 The Windows tray embeds that same product version and compares it numerically against the latest published GitHub release tag. To notify existing installations of an update, increase `AppVersion` before publishing; rebuilding the same version does not trigger an update notification. Drafts, prereleases and releases without the matching Windows installer are not offered as updates.
 
+Normal CI runs compile the installer and run the application tests, without installing the app on the runner. The full Windows installation and upgrade tests are optional: select **Run full Windows installation and upgrade tests** when starting the workflow manually to enable them.
+
 ## Credits and licence
 
 EarsMixer is maintained by Joe Clack and is based on [OSCWebMixer2 by Marc Castles](https://github.com/castles/OSCWebMixer2). The project is distributed under the [MIT licence](LICENSE).

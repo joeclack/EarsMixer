@@ -110,18 +110,19 @@ body.fullscreen-mode #mix, body.fullscreen-mode .mixer-toolbar { display: none; 
 .controls-fan strong { font-size: 18px; font-weight: 600; line-height: 21px; }
 .controls-fan .fan-fullscreen { padding: 0; border: 0; background: transparent; }
 .fan-fullscreen button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; width: 100%; height: 100%; padding: 8px; border: 1px solid #52627c; border-radius: inherit; background: #252f3e; color: inherit; font: inherit; }
-.fan-fullscreen { --fan-x: 0px; --fan-y: -210px; --fan-delay: 0ms; }
-.fan-zero { --fan-x: 80px; --fan-y: -194px; --fan-delay: 30ms; }
-.fan-compact { --fan-x: 148px; --fan-y: -148px; --fan-delay: 60ms; }
-.fan-favourites { --fan-x: 194px; --fan-y: -80px; --fan-delay: 90ms; }
-.fan-edit { --fan-x: 210px; --fan-y: 0px; --fan-delay: 120ms; }
-.fan-profile { --fan-x: 48px; --fan-y: -120px; --fan-delay: 60ms; }
-.controls-fan .view-toggle { --fan-x: 78px; --fan-y: -40px; --fan-delay: 60ms; }
+.fan-fullscreen { --fan-x: 0px; --fan-y: -230px; --fan-delay: 0ms; }
+.fan-zero { --fan-x: 88px; --fan-y: -213px; --fan-delay: 30ms; }
+.fan-compact { --fan-x: 163px; --fan-y: -163px; --fan-delay: 60ms; }
+.fan-favourites { --fan-x: 213px; --fan-y: -88px; --fan-delay: 90ms; }
+.fan-edit { --fan-x: 230px; --fan-y: 0px; --fan-delay: 120ms; }
+.fan-pan { --fan-x: 88px; --fan-y: -110px; --fan-delay: 90ms; }
+.fan-profile { --fan-x: 0px; --fan-y: -120px; --fan-delay: 60ms; }
+.controls-fan .view-toggle { --fan-x: 94px; --fan-y: -22px; --fan-delay: 60ms; }
 .is-open .controls-fan { visibility: visible; transition-delay: 0ms; }
 .is-open .controls-fan .fan-action, .is-open .controls-fan .view-toggle { opacity: 1; pointer-events: auto; transform: translate(calc(-50% + var(--fan-x)), calc(50% + var(--fan-y))) scale(1); transition-delay: var(--fan-delay); }
 .is-open .controls-fan .fan-action:disabled, .is-open .controls-fan .favourites-toggle:has(input:disabled) { opacity: .5; }
 .controls-fan button:not(:disabled):hover, .controls-fan .favourites-toggle:has(input:enabled):hover { border-color: #a5c5ff; background: #35465e; }
-.controls-fan .favourites-toggle:has(input:checked), .controls-fan #compactMode[aria-pressed="true"] { background: #405575; border-color: #a5c5ff; color: #fff; }
+.controls-fan .favourites-toggle:has(input:checked), .controls-fan #panMode[aria-pressed="true"], .controls-fan #compactMode[aria-pressed="true"] { background: #405575; border-color: #a5c5ff; color: #fff; }
 @media (max-height: 320px) { .mixer-controls { bottom: max(8px, env(safe-area-inset-bottom)); } }
 @media (prefers-reduced-motion: reduce) { .controls-fan, .controls-fan .fan-action, .controls-fan .view-toggle, .controls-toggle .app-icon { transition: none; } }
 .settings-dialog { width: min(440px, calc(100vw - 24px)); max-width: calc(100vw - 24px); max-height: calc(100dvh - 32px); margin: auto; padding: 20px; border: 1px solid #444d5d; border-radius: 12px; background: #191d24; color: #eef0f3; overflow-y: auto; overflow-x: hidden; }
@@ -142,3 +143,7 @@ body.fullscreen-mode #mix, body.fullscreen-mode .mixer-toolbar { display: none; 
 #deviceUsernameLabel { max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .dialog-actions #skipUsername { background: #252a33; border-color: #444b57; }
+
+/* A centre mark keeps left/right pan distinct from send levels. */
+.pan-mode .fader::-webkit-slider-runnable-track { background: linear-gradient(to right, #373e49 calc(50% - 1px), #aeb7c5 calc(50% - 1px), #aeb7c5 calc(50% + 1px), #373e49 calc(50% + 1px)); }
+.pan-mode .fader::-moz-range-track { background: linear-gradient(to right, #373e49 calc(50% - 1px), #aeb7c5 calc(50% - 1px), #aeb7c5 calc(50% + 1px), #373e49 calc(50% + 1px)); }

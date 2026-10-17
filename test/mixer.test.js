@@ -299,3 +299,65 @@ test("a snapshot mix reload invalidates faders and requeries the selected AUX wi
   assert.equal(slider.value, '0');
   assert.equal(mixer.controls.get('mixerStatus').textContent, 'Loading mix · 0/2');
 });
+
+for (const [name, source] of [["source", mixerSource], ["production", fs.readFileSync(path.join(__dirname, "../web/mixer.min.js"), "utf8")]]) {
+  test(name + " pan toggle queries and writes pan, then restores level controls", () => {
+    const mixer = createMixer(source);
+    mixer.level(2, 2, -12);
+    const slider = mixer.slider(2);
+    slider.value = "0.8"; slider.dispatchEvent({ type: "input" });
+    mixer.socket().sent.length = 0;
+    const toggle = mixer.controls.get("panMode");
+    toggle.dispatchEvent({ type: "click" });
+    assert.equal(toggle.attributes["aria-pressed"], "true");
+    assert.equal(slider.disabled, true);
+    assert.equal(slider.value, "0.5");
+    mixer.tick(40);
+    assert.deepEqual(mixer.socket().sent.filter(m => m.address).map(m => m.address), [
+      "/Input_Channels/2/Aux_Send/2/send_pan/?", "/Input_Channels/65/Aux_Send/2/send_pan/?",
+    ]);
+    mixer.level(2, 2, 0); // A late level update must not unlock a pan control.
+    assert.equal(slider.disabled, true);
+    const pan = (channel, aux, value) => mixer.message({ address: `/Input_Channels/${channel}/Aux_Send/${aux}/send_pan`, args: [value] });
+    pan(2, 4, 1);
+    assert.equal(slider.disabled, true);
+    pan(2, 2, 0.5);
+    assert.equal(slider.disabled, false);
+    assert.equal(slider.attributes["aria-valuetext"], "Centre");
+    pan(2, 2, 0);
+    assert.equal(slider.attributes["aria-valuetext"], "100 percent left");
+    slider.value = "1"; slider.dispatchEvent({ type: "input" }); mixer.tick(40);
+    assert.deepEqual(mixer.socket().sent.at(-1), { address: "/Input_Channels/2/Aux_Send/2/send_pan", args: [1] });
+    assert.equal(slider.attributes["aria-valuetext"], "100 percent right");
+    assert.equal(mixer.controls.get("zeroAllChannels").disabled, true);
+    slider.value = "0.25"; slider.dispatchEvent({ type: "input" });
+    mixer.socket().sent.length = 0;
+    toggle.dispatchEvent({ type: "click" }); mixer.tick(40);
+    assert.equal(toggle.attributes["aria-pressed"], "false");
+    assert.equal(slider.disabled, true);
+    assert.ok(mixer.socket().sent.filter(m => m.address).every(m => m.address.endsWith("/send_level/?")));
+    pan(2, 2, 1);
+    assert.equal(slider.disabled, true);
+    mixer.level(2, 2, 0);
+    assert.equal(slider.disabled, false);
+    slider.value = "1"; slider.dispatchEvent({ type: "input" }); mixer.tick(40);
+    assert.deepEqual(mixer.writes().at(-1), { address: "/Input_Channels/2/Aux_Send/2/send_level", args: [10] });
+  });
+
+  test(name + " pan clears stale writes on AUX changes and disconnects", () => {
+    const mixer = createMixer(source);
+    mixer.controls.get("panMode").dispatchEvent({ type: "click" });
+    mixer.message({ address: "/Input_Channels/2/Aux_Send/2/send_pan", args: [0.5] });
+    const slider = mixer.slider(2);
+    slider.value = "0"; slider.dispatchEvent({ type: "input" });
+    const aux = mixer.controls.get("aux"); aux.value = "4"; aux.dispatchEvent({ type: "change" });
+    mixer.tick(40);
+    assert.equal(slider.disabled, true);
+    assert.equal(mixer.socket().sent.filter(m => m.address?.endsWith("/send_pan")).length, 0);
+    mixer.message({ address: "/Input_Channels/2/Aux_Send/4/send_pan", args: [0.75] });
+    slider.value = "1"; slider.dispatchEvent({ type: "input" });
+    mixer.socket().close(); mixer.tick(40);
+    assert.equal(slider.disabled, true);
+    assert.equal(mixer.socket().sent.filter(m => m.address?.endsWith("/send_pan")).length, 0);
+  });
+}

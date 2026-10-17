@@ -2,6 +2,9 @@
 
 const channelsDiv = document.getElementById("channels");
 const auxSelect = document.getElementById("aux");
+const panModeButton = document.getElementById("panMode");
+let panMode = false;
+const sendParameter = () => panMode ? "send_pan" : "send_level";
 const favourites = document.getElementById("favourites");
 const zeroAllChannelsButton = document.getElementById("zeroAllChannels");
 const editLayoutButton = document.getElementById("editLayout");
@@ -145,10 +148,18 @@ function updateLevel(slider, level, db = null) {
   slider.dataset.refreshing = "false";
   if (valid) slider.dataset.valueAux = auxSelect.value;
   else delete slider.dataset.valueAux;
-  const value = valid ? Math.max(0, Math.min(1, level)) : 0;
+  const value = valid ? Math.max(0, Math.min(1, level)) : (panMode ? 0.5 : 0);
   slider.value = String(value);
   slider.style.setProperty("--value", value * 100 + "%");
   const readout = channelElements.get(slider.dataset.channel).readout;
+  if (panMode) {
+    const offset = Math.round(Math.abs(value * 2 - 1) * 100);
+    const position = offset === 0 ? "C" : (value < 0.5 ? "L " : "R ") + offset;
+    readout.textContent = valid ? position : "—";
+    readout.title = valid ? "Send pan: " + position : "Waiting for the desk";
+    slider.setAttribute("aria-valuetext", valid ? (offset === 0 ? "Centre" : offset + " percent " + (value < 0.5 ? "left" : "right")) : "Not loaded");
+    return;
+  }
   const decibels = db === null ? sliderToDb(value) : db;
   const dbText = decibels <= -150 ? "−∞" : String(Number(decibels.toFixed(1)));
   readout.textContent = valid ? Math.round(value * 100) + "% / " + dbText + " dB" : "—";
@@ -157,7 +168,7 @@ function updateLevel(slider, level, db = null) {
 }
 
 function canZeroAllChannels() {
-  return !editingLayout && ws?.readyState === WebSocket.OPEN && Boolean(auxSelect.value) && channelElements.size > 0 &&
+  return !panMode && !editingLayout && ws?.readyState === WebSocket.OPEN && Boolean(auxSelect.value) && channelElements.size > 0 &&
     Array.from(channelElements.values()).every(({ slider }) => slider.dataset.ready === "true");
 }
 
@@ -185,8 +196,8 @@ function flushSlider(slider) {
   if (!pending) return;
   clearTimeout(pending.timer);
   pendingWrites.delete(slider.dataset.channel);
-  if (editingLayout || slider.dataset.ready !== "true" || pending.aux !== auxSelect.value) return;
-  sendOSC("/Input_Channels/" + slider.dataset.channel + "/Aux_Send/" + pending.aux + "/send_level", [sliderToDb(pending.value)]);
+  if (editingLayout || slider.dataset.ready !== "true" || pending.aux !== auxSelect.value || pending.parameter !== sendParameter()) return;
+  sendOSC("/Input_Channels/" + slider.dataset.channel + "/Aux_Send/" + pending.aux + "/" + pending.parameter, [pending.parameter === "send_pan" ? pending.value : sliderToDb(pending.value)]);
 }
 
 function sliderChange() {
@@ -195,7 +206,7 @@ function sliderChange() {
   updateLevel(this, value);
   let pending = pendingWrites.get(this.dataset.channel);
   if (pending) { pending.value = value; return; }
-  pending = { aux: auxSelect.value, value, timer: null };
+  pending = { aux: auxSelect.value, parameter: sendParameter(), value, timer: null };
   pendingWrites.set(this.dataset.channel, pending);
   pending.timer = setTimeout(() => flushSlider(this), WRITE_INTERVAL_MS);
 }
@@ -223,7 +234,7 @@ function requestValues({ preserveValues = false } = {}) {
       if (generation !== queryGeneration || aux !== auxSelect.value || !ws || ws.readyState !== WebSocket.OPEN) return;
       if (index < missing.length) {
         const slider = missing[index++].slider;
-        if (slider.dataset.ready !== "true") sendOSC("/Input_Channels/" + slider.dataset.channel + "/Aux_Send/" + aux + "/send_level/?");
+        if (slider.dataset.ready !== "true") sendOSC("/Input_Channels/" + slider.dataset.channel + "/Aux_Send/" + aux + "/" + sendParameter() + "/?");
         queryTimer = setTimeout(queryNext, 12);
       } else if (attempt < 2 && Array.from(channelElements.values()).some(({ slider }) => slider.dataset.ready !== "true")) {
         queryTimer = setTimeout(() => queryMissing(attempt + 1), 1000);
@@ -268,14 +279,14 @@ function onMessage(event) {
   if (typeof json.address !== "string" || !Array.isArray(json.args)) return;
   if (json.address === "/MixReload") { requestValues({ preserveValues: true }); return; }
   if (json.address === "/SnapshotName") { updateSnapshot(json.args[0]); return; }
-  const levelMatch = json.address.match(/^\/Input_Channels\/(\d+)\/Aux_Send\/(\d+)\/send_level$/);
+  const levelMatch = json.address.match(/^\/Input_Channels\/(\d+)\/Aux_Send\/(\d+)\/send_(level|pan)$/);
   if (levelMatch) {
-    if (levelMatch[2] !== auxSelect.value) return;
+    if (levelMatch[2] !== auxSelect.value || "send_" + levelMatch[3] !== sendParameter()) return;
     const controls = channelElements.get(levelMatch[1]);
     const db = json.args[0];
     if (!controls || typeof db !== "number" || !Number.isFinite(db)) return;
     controls.slider.dataset.ready = "true";
-    updateLevel(controls.slider, dbToSlider(db), db);
+    updateLevel(controls.slider, panMode ? db : dbToSlider(db), db);
     controls.slider.disabled = editingLayout || !ws || ws.readyState !== WebSocket.OPEN;
     updateMixStatus();
     return;
@@ -287,7 +298,7 @@ function onMessage(event) {
       const name = String(json.args[0] || "Channel " + channelMatch[1]);
       controls.name.textContent = name;
       controls.name.title = name;
-      controls.slider.setAttribute("aria-label", name + " send level");
+      controls.slider.setAttribute("aria-label", name + (panMode ? " send pan" : " send level"));
       controls.handle.setAttribute("aria-label", "Move " + name);
       controls.checkbox.setAttribute("aria-label", "Favourite " + name);
     }
@@ -344,7 +355,7 @@ function buildChannels(channels) {
     const slider = row.querySelector(".volumeInput");
     slider.dataset.channel = String(channel.channel);
     slider.dataset.ready = "false";
-    slider.setAttribute("aria-label", name + " send level");
+    slider.setAttribute("aria-label", name + (panMode ? " send pan" : " send level"));
     slider.addEventListener("input", sliderChange);
     for (const event of ["change", "pointerup", "pointercancel", "keyup", "blur"]) slider.addEventListener(event, () => flushSlider(slider));
     const checkbox = row.querySelector('input[name="fav[]"]');
@@ -399,10 +410,21 @@ function moveChannelWithKeys(event) {
   event.currentTarget.focus(); row.scrollIntoView({ block: "nearest" }); saveChannelOrder();
 }
 
+panModeButton.addEventListener("click", () => {
+  panMode = !panMode;
+  panModeButton.setAttribute("aria-pressed", String(panMode));
+  document.body.classList.toggle("pan-mode", panMode);
+  for (const { slider, name } of channelElements.values()) {
+    slider.setAttribute("aria-label", name.textContent + (panMode ? " send pan" : " send level"));
+  }
+  requestValues();
+});
+
 function updateLayoutInputs() {
   zeroAllChannelsButton.disabled = !canZeroAllChannels();
   const connected = ws && ws.readyState === WebSocket.OPEN;
   editLayoutButton.disabled = !channelsDiv.children.length;
+  panModeButton.disabled = editingLayout || !channelsDiv.children.length;
   favourites.disabled = editingLayout || !channelsDiv.children.length;
   for (const { slider } of channelElements.values()) slider.disabled = editingLayout || !connected || slider.dataset.ready !== "true";
   for (const checkbox of channelsDiv.querySelectorAll('input[name="fav[]"]')) checkbox.disabled = editingLayout;

@@ -1,0 +1,20 @@
+/* Admin sign-in page, matching the dashboard. */
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: #0c0d0f; color: #e6e8eb; font: 14px/1.45 system-ui, -apple-system, "Segoe UI Variable Text", "Segoe UI", Roboto, sans-serif; }
+body { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 16px; }
+.login-card { width: min(380px, 100%); padding: 24px; background: #131518; border: 1px solid #262a30; border-radius: 6px; display: flex; flex-direction: column; gap: 14px; }
+.admin-brand { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; }
+.admin-brand svg { color: #45c9bd; }
+h1 { margin: 0; font-size: 22px; font-weight: 600; }
+p { margin: 0; }
+.muted { color: #98a1ab; }
+form { display: flex; flex-direction: column; gap: 14px; }
+label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #98a1ab; }
+input { min-height: 44px; padding: 0 12px; border-radius: 4px; border: 1px solid #343941; background: #0c0d0f; color: #e6e8eb; font: inherit; font-size: 14px; }
+button { min-height: 44px; border-radius: 4px; border: 1px solid #45c9bd; background: #45c9bd; color: #04211e; font: inherit; font-weight: 600; cursor: pointer; }
+button:disabled { opacity: 0.5; cursor: default; }
+.error { color: #f0857a; }
+.error:empty { display: none; }
+a { color: #45c9bd; font-weight: 500; }
+:focus-visible { outline: 2px solid #45c9bd; outline-offset: 2px; }

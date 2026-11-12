@@ -19,7 +19,8 @@
         "mock-desk": "node tools/mock-desk.js",
         "build:js": "esbuild web/mixer.js --minify --outfile=web/mixer.min.js",
         "build:css": "esbuild web/mixer.css --minify --outfile=web/mixer.min.css",
-        "build": "npm run build:js && npm run build:css",
+        "build:admin": "esbuild admin/src/main.jsx --bundle --minify --jsx=automatic --jsx-import-source=preact --target=es2020 --outfile=web/admin.bundle.js",
+        "build": "npm run build:js && npm run build:css && npm run build:admin",
         "prepackage": "npm run build",
         "package": "npx pkg . --output \"dist/EarsMixer-${npm_package_version}\"",
         "installer:windows": "node tools/build-installer.cjs",
@@ -36,7 +37,8 @@
     ],
     "devDependencies": {
         "@yao-pkg/pkg": "^6.22.0",
-        "esbuild": "0.28.2"
+        "esbuild": "0.28.2",
+        "preact": "^11.2.0"
     },
     "dependencies": {
         "@homebridge/ciao": "^1.4.0",

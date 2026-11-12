@@ -47,6 +47,6 @@ For a console-connected source deployment, configure the server and run `npm sta
 - `npm run build` regenerates the browser assets.
 - `npm run installer:windows` builds the Windows installer into `dist/`; requires Inno Setup 6.7+ and the Windows .NET Framework C# compiler.
 - GitHub Actions builds release installers from `main`; feature branches remain unpublished until merged. Product metadata and the release tag version come from [installer/version.inc.iss](installer/version.inc.iss).
-- Windows/product version: **1.7.1**. Node package version: **2.9.1**, maintained in its separate upstream series.
+- Windows/product version: **1.8.0**. Node package version: **2.10.0**, maintained in its separate upstream series.
 
 See [CHANGELOG.md](CHANGELOG.md) for release history. Based on [OSCWebMixer2 by Marc Castles](https://github.com/castles/OSCWebMixer2), maintained by Joe Clack under the [MIT licence](LICENSE).

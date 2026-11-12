@@ -1,0 +1,3 @@
+// Instrument icons shipped in web/images/instruments.
+export const instrumentIcons = ["accordion", "acoustic-guitar", "audio-cable", "banjo", "bass-guitar", "cassette-tape", "conga", "cymbals", "electric-guitar", "flute", "goblet-drum", "guitar-pick", "harp", "headset", "loudspeaker", "lyre", "mandolin", "maraca", "metronome", "microphone", "microphone_01", "note", "note_01", "pan-flute", "piano", "reel-to-reel-tape-recorder", "saxophone", "snare-drum", "synthesizer", "tambourine", "tambourine_01", "treble-clef", "triangle", "trombone", "trumpet", "tuba", "vibraphone", "vinyl-record", "violin", "xylophone"];
+export const iconPath = name => "/images/instruments/" + name + ".svg";

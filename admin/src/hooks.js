@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "preact/hooks";
 import { api } from "./api.js";
-import { parseLiveUpdate } from "./format.js";
+import { parseLiveUpdate } from "./format.mjs";
 
 export function useHashPage(pages, fallback) {
   const read = () => {

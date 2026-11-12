@@ -7,18 +7,21 @@ import { Overview } from "./pages/Overview.jsx";
 import { LiveMix } from "./pages/LiveMix.jsx";
 import { Clients } from "./pages/Clients.jsx";
 import { Templates } from "./pages/Templates.jsx";
+import { DeskSettings } from "./pages/DeskSettings.jsx";
+import { System } from "./pages/System.jsx";
 
 const pages = {
   overview: { title: "Overview", text: "Desk, access and who is on each mix.", icon: "overview" },
   "live-mix": { title: "Live mix", text: "Every musician's sends at a glance. Read only.", icon: "live" },
   clients: { title: "Clients", text: "Who can connect and what they changed.", icon: "clients" },
   templates: { title: "Templates", text: "Starting layouts musicians can load in the app.", icon: "templates" },
+  "desk-settings": { title: "Desk settings", text: "How EarsMixer reaches the desk and what musicians can see.", icon: "desk" },
+  system: { title: "System", text: "Admin password and version.", icon: "system" },
 };
-// Desk settings and System still open in the classic dashboard until they are rebuilt here.
 const nav = [
-  ["Monitor", [["overview"], ["live-mix"]]],
-  ["Access", [["clients"]]],
-  ["Setup", [["templates"], ["desk", "Desk settings", "/admin-classic.html#desk-settings"], ["system", "System", "/admin-classic.html#config"]]],
+  ["Monitor", ["overview", "live-mix"]],
+  ["Access", ["clients"]],
+  ["Setup", ["templates", "desk-settings", "system"]],
 ];
 
 function StatusCell({ label, value, tone }) {
@@ -49,8 +52,8 @@ function App() {
       <div className="nav-groups">
         {nav.map(([section, items]) => <div className="nav-group" key={section}>
           <div className="eyebrow nav-title">{section}</div>
-          {items.map(([id, title, href]) => <a key={id} href={href || "#" + id} className={"nav-item" + (id === page ? " active" : "")} aria-current={id === page ? "page" : undefined}>
-            <Icon name={pages[id]?.icon || id} /><span>{title || pages[id].title}</span>
+          {items.map(id => <a key={id} href={"#" + id} className={"nav-item" + (id === page ? " active" : "")} aria-current={id === page ? "page" : undefined}>
+            <Icon name={pages[id].icon} /><span>{pages[id].title}</span>
           </a>)}
         </div>)}
       </div>
@@ -74,7 +77,9 @@ function App() {
           : page === "overview" ? <Overview status={data} access={access.data} reload={status.reload} />
           : page === "live-mix" ? <LiveMix status={data} selectedAux={selectedAux} onSelect={selectAux} reload={status.reload} />
           : page === "clients" ? <Clients status={data} access={access.data} reloadAccess={access.reload} />
-          : <Templates status={data} />}
+          : page === "templates" ? <Templates status={data} />
+          : page === "desk-settings" ? <DeskSettings status={data} reload={status.reload} />
+          : <System status={data} reload={status.reload} />}
       </main>
     </div>
   </div>;

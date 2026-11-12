@@ -248,12 +248,11 @@ test("offline v2: discovery, scoped clients, dashboard, templates, admin session
     assert.equal(dashboard.connections, 2);
     const oldDeskPage = await request("/desk-settings.html", "GET", undefined, session);
     assert.equal(oldDeskPage.status, 302);
-    assert.equal(oldDeskPage.headers.get("location"), "/admin-classic.html#desk-settings");
-    assert.match(await (await request("/admin.html", "GET", undefined, session)).text(), /admin\.bundle\.js/);
-    const dashboardPage = await (await request("/admin-classic.html", "GET", undefined, session)).text();
-    assert.match(dashboardPage, /id="configForm"/);
-    assert.match(dashboardPage, /data-page="desk-settings"/);
+    assert.equal(oldDeskPage.headers.get("location"), "/admin.html#desk-settings");
+    const dashboardPage = await (await request("/admin.html", "GET", undefined, session)).text();
+    assert.match(dashboardPage, /admin\.bundle\.js/);
     assert.doesNotMatch(dashboardPage, /class="donate"|paypal\.com|<iframe/);
+    assert.equal((await request("/admin.bundle.js", "GET", undefined, session)).status, 200);
     assert.equal((await request("/config", "GET", undefined, session)).status, 200);
     assert.equal((await request("/api/admin/templates", "PUT", { name: "Protected layout", username: "Guitarist", config: templateConfig }, session)).status, 200);
     const passwordFile = await fs.readFile(path.join(directory, "data", "admin-password.json"), "utf8");

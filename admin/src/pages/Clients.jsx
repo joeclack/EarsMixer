@@ -1,6 +1,6 @@
 import { api } from "../api.js";
 import { useAction } from "../hooks.js";
-import { activity, ago, changeText, clock } from "../format.js";
+import { activity, ago, changeText, clock } from "../format.mjs";
 import { AuxLabel, Button, Empty, Message, Panel, Table, Tag } from "../ui.jsx";
 
 export function Clients({ status, access, reloadAccess }) {

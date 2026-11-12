@@ -4,16 +4,17 @@
     <title>Admin sign in · EarsMixer</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="/admin.css">
+    <link rel="stylesheet" href="/admin-login.css">
+    <meta name="color-scheme" content="dark">
     <link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon">
   </head>
-  <body class="admin-login">
-    <main class="card login-card">
-      <div class="admin-brand"><img src="/images/Glow_Logo_2026.svg" alt="Glow"><span>EarsMixer</span></div>
+  <body>
+    <main class="login-card">
+      <div class="admin-brand"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="5" y1="4" x2="5" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/><line x1="19" y1="4" x2="19" y2="20"/><line x1="2.5" y1="9" x2="7.5" y2="9"/><line x1="9.5" y1="15" x2="14.5" y2="15"/><line x1="16.5" y1="7" x2="21.5" y2="7"/></svg><span>EarsMixer</span></div>
       <h1>Admin sign in</h1>
       <p class="muted">Enter the admin password to access the dashboard.</p>
-      <form id="adminLoginForm" class="password-fields">
-        <label class="password-field">Password
+      <form id="adminLoginForm">
+        <label>Password
           <input id="adminLoginPassword" type="password" autocomplete="current-password" maxlength="256" required autofocus>
         </label>
         <button id="adminLoginSubmit" type="submit">Sign in</button>

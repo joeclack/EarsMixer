@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import { useLiveLevels } from "../hooks.js";
-import { activity, changeText, clientName, clock, levelNumber, levelText, panText, rgb } from "../format.js";
+import { activity, changeText, clientName, clock, levelNumber, levelText, panText, rgb } from "../format.mjs";
 import { AuxLabel, Empty, Panel, Table, Tag } from "../ui.jsx";
 
 function Bar({ value, colour, tall }) {

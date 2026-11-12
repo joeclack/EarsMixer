@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
 import { api } from "../api.js";
 import { useAction } from "../hooks.js";
-import { activity, ago, changeText, clientName } from "../format.js";
+import { activity, ago, changeText, clientName } from "../format.mjs";
 import { AuxLabel, Button, Empty, Message, Panel, Table } from "../ui.jsx";
 
 function ConnectPanel({ status, access, reload }) {
@@ -43,10 +43,10 @@ function ConnectPanel({ status, access, reload }) {
 
 function Attention({ status, access }) {
   const items = [];
-  if (!status.loaded) items.push({ tone: "warn", title: "Waiting for the desk", text: "EarsMixer has not loaded channels from the desk yet. Check the desk address.", href: "/admin-classic.html#desk-settings", link: "Desk settings" });
+  if (!status.loaded) items.push({ tone: "warn", title: "Waiting for the desk", text: "EarsMixer has not loaded channels from the desk yet. Check the desk address.", href: "#desk-settings", link: "Desk settings" });
   if (!status.adminPasswordEnabled) items.push({ tone: "warn", title: "No admin password", text: access?.enabled
     ? "Anyone on this network can open this dashboard and read the PIN."
-    : "Anyone on this network can open this dashboard and change settings.", href: "/admin-classic.html#config", link: "Set password" });
+    : "Anyone on this network can open this dashboard and change settings.", href: "#system", link: "Set password" });
   if (access && !access.enabled) items.push({ tone: "muted", title: "No connection PIN", text: "Anyone on this network can connect to the mixer.", href: "#clients", link: "Mobile access" });
   return <Panel title="Needs attention" meta={items.length ? String(items.length) : ""} flush className="grow-1">
     {items.length ? <ul className="attention">

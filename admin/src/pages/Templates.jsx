@@ -1,64 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { arrowMove, useSortable } from "../sortable.js";
+import { buildItems, clone, emptyConfig, flatten, move, upgrade } from "../templates-model.mjs";
 import { api } from "../api.js";
 import { useAction } from "../hooks.js";
 import { Button, Empty, Grip, Icon, Message, Panel, Tag } from "../ui.jsx";
-
-const emptyConfig = aux => ({ selectedAux: aux, channelOrder: [], favouritesByAux: {}, hiddenByAux: {}, groupsByAux: {}, globalGroups: [], view: "list" });
-const clone = value => JSON.parse(JSON.stringify(value));
-
-// Older templates showed only favourites on an AUX. Keep the same channels
-// visible by hiding the rest; favourites and the starting view are no longer used.
-function upgrade(config, channels) {
-  const next = { ...emptyConfig(config.selectedAux), ...clone(config) };
-  for (const [aux, settings] of Object.entries(next.favouritesByAux || {})) {
-    if (settings?.enabled && !next.hiddenByAux[aux] && channels.length)
-      next.hiddenByAux[aux] = channels.map(channel => channel.channel).filter(id => !settings.channels.includes(id));
-  }
-  next.favouritesByAux = {}; next.view = "list";
-  return next;
-}
-// The list a musician sees on one AUX: single channels, and groups with their members together.
-function buildItems(order, groups) {
-  const groupOf = new Map();
-  for (const group of groups) for (const member of group.members) groupOf.set(member, group);
-  const items = [], seen = new Set();
-  for (const id of order) {
-    const group = groupOf.get(id);
-    if (!group) items.push({ key: "c" + id, channel: id });
-    else if (!seen.has(group.id)) { seen.add(group.id); items.push({ key: "g" + group.id, group, members: order.filter(member => group.members.includes(member)) }); }
-  }
-  return items;
-}
-const flatten = items => items.flatMap(item => item.group ? item.members : [item.channel]);
-function move(list, from, to) {
-  const next = [...list]; const [item] = next.splice(from, 1); next.splice(to, 0, item); return next;
-}
-// Drag to reorder with SortableJS. The library moves the DOM node itself, so put
-// it back and let the state change draw the new order.
-function useSortable(ref, handle, onMove, enabled) {
-  const callback = useRef(onMove);
-  callback.current = onMove;
-  useEffect(() => {
-    if (!enabled || !ref.current || !window.Sortable) return undefined;
-    const sortable = new window.Sortable(ref.current, {
-      handle, draggable: "> li", animation: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 150,
-      ghostClass: "drag-ghost", forceFallback: true, fallbackOnBody: true, fallbackTolerance: 4,
-      onEnd(event) {
-        const { from, item, oldIndex, newIndex } = event;
-        if (oldIndex === newIndex) return;
-        item.remove(); from.insertBefore(item, from.children[oldIndex] || null);
-        callback.current(oldIndex, newIndex);
-      },
-    });
-    return () => sortable.destroy();
-  }, [enabled, handle]);
-}
-function arrowMove(event, index, length, onMove) {
-  if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
-  event.preventDefault();
-  const to = index + (event.key === "ArrowUp" ? -1 : 1);
-  if (to >= 0 && to < length) onMove(index, to);
-}
 
 function ChannelRow({ channel, hidden, onHidden, inside, handleClass, onKey }) {
   const name = channel.label || "Channel " + channel.channel;

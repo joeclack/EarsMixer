@@ -227,10 +227,10 @@ function startServer()
 			res.status(result.status).set('Cache-Control', 'no-store').json(result.body);
 		} catch(error) { next(error); }
 	});
-	app.get('/api/admin/access', (req, res) => {
+	app.get('/api/admin/access', async (req, res) => {
 		const online = new Set(connections.filter(socket => !socket.isObserver).map(socket => socket.clientInfo.deviceId).filter(Boolean));
 		const summary = clientAccess.summary();
-		res.json({ ...summary, devices: summary.devices.map(device => ({ ...device, online: online.has(device.id) })) });
+		res.json({ ...summary, qr: await accessQr(summary), devices: summary.devices.map(device => ({ ...device, online: online.has(device.id) })) });
 	});
 	app.put('/api/admin/access', async (req, res, next) => {
 		if(typeof req.body?.enabled !== 'boolean') { res.status(400).json({ error: 'Choose whether a PIN is required.' }); return; }
@@ -700,6 +700,18 @@ function startServer()
 
 	logger.info(`Web Server Ready. Please visit ${getServerURL()}/admin in a web browser to configure EarsMixer.`);
 	startWebSocketServer();
+}
+
+// A QR code holding the mixer link and the connection PIN, for the admin to
+// show to musicians. Only the admin API returns it; the public connection QR
+// never includes the PIN. The PIN sits in the URL fragment, which browsers do
+// not send to servers.
+let accessQrLink = null, accessQrImage = null;
+async function accessQr(summary) {
+	if(!summary.enabled) return null;
+	const link = (await getConnectionInfo()).url + '#pin=' + summary.pin;
+	if(accessQrLink !== link) { accessQrLink = link; accessQrImage = QRCode.toDataURL(link, { width: 320, margin: 2 }); }
+	try { return await accessQrImage; } catch { accessQrLink = null; return null; }
 }
 
 /**

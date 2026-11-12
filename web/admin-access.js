@@ -28,6 +28,9 @@ function renderAccess() {
   if (!accessBusy) accessRequiredInput.checked = accessState.enabled;
   accessPinPanel.hidden = !accessState.enabled;
   document.getElementById("accessPin").textContent = accessState.pin.slice(0, 3) + " " + accessState.pin.slice(3);
+  const qr = document.getElementById("accessQr");
+  document.getElementById("accessQrWrap").hidden = !accessState.qr;
+  if (accessState.qr && qr.src !== accessState.qr) qr.src = accessState.qr;
   for (const id of ["accessRequired", "copyAccessPin", "changeAccessPin", "revokeAllAccess"]) document.getElementById(id).disabled = accessBusy;
   accessDevicesEl.replaceChildren();
   if (!accessState.devices.length) {

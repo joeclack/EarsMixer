@@ -147,6 +147,10 @@
                     <button id="changeAccessPin" type="button">Change PIN</button>
                     <button id="revokeAllAccess" type="button">Sign out all devices</button>
                   </div>
+                  <div id="accessQrWrap" class="qr-wrap" hidden>
+                    <img id="accessQr" alt="QR code that connects and enters the PIN" />
+                    <p class="muted">Scan with the EarsMixer app to connect without typing the PIN. Anyone who scans this code can connect, so only show it to your musicians.</p>
+                  </div>
                 </div>
                 <p id="accessMessage" role="status" aria-live="polite"></p>
                 <h3 class="access-devices-title">Devices</h3>

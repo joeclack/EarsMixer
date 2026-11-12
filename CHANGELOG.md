@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add an optional connection PIN for the mobile app and browser mixer. On the admin Clients page, switch on Require a PIN to connect, share the 6-digit PIN shown there, change it, or sign out every device. A device enters the PIN once and stays signed in until the PIN changes or it is signed out. PIN attempts are rate limited, and access tokens are stored hashed.
+- Recognise devices by an ID each client creates, rather than by IP address. The Clients page lists devices with their name, last address and when they were last seen, and can sign out or forget each one.
+- Refuse WebSocket messages over 64 KB, and require the admin session for the dashboard's observer connection.
+- Simplify the admin template editor: channels on the left and channel groups on the right, with Save at the top. Remove favourites, Saved by and Starting view; a channel is now either shown or hidden. Older templates that showed only favourites keep the same channels visible when edited.
 - Let shared templates carry hidden channels and channel groups for the mobile app. In the admin template editor, hide channels per AUX and create groups for one AUX mix or for all AUX mixes; a channel can only be in one group a mix can see, and each group needs at least two channels. The server validates these with the same rules as the app, and templates saved before this keep working.
 
 ## 1.7.1 — 2026-11-09

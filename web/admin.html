@@ -135,6 +135,24 @@
             </section>
 
             <section class="page" data-page="clients">
+              <section class="card" aria-labelledby="accessTitle">
+                <h2 id="accessTitle">Mobile access</h2>
+                <label class="access-toggle"><input id="accessRequired" type="checkbox"> Require a PIN to connect</label>
+                <p class="muted">When on, the mobile app and browser mixer ask for this PIN once per device. Devices stay signed in until you change the PIN or sign them out.</p>
+                <div id="accessPinPanel" class="access-pin" hidden>
+                  <span class="access-pin-label">Connection PIN</span>
+                  <output id="accessPin" class="access-pin-value" aria-live="polite">——————</output>
+                  <div class="access-actions">
+                    <button id="copyAccessPin" type="button">Copy PIN</button>
+                    <button id="changeAccessPin" type="button">Change PIN</button>
+                    <button id="revokeAllAccess" type="button">Sign out all devices</button>
+                  </div>
+                </div>
+                <p id="accessMessage" role="status" aria-live="polite"></p>
+                <h3 class="access-devices-title">Devices</h3>
+                <p class="muted">Each device is recognised by an ID its app creates, so it stays the same when its IP address changes.</p>
+                <div id="accessDevices"></div>
+              </section>
               <section class="card">
                 <h2>Connected clients</h2>
                 <p id="noClients" class="muted" hidden>No clients connected.</p>
@@ -153,17 +171,22 @@
                 <p id="adminTemplateMessage" role="status" aria-live="polite"></p>
               </section>
               <form id="templateEditor" class="card" hidden>
-                <h2 id="templateEditorTitle">New template</h2>
                 <fieldset id="templateFields">
+                  <div class="template-editor-head">
+                    <h2 id="templateEditorTitle">New template</h2>
+                    <p id="templateSaveHint" class="muted"></p>
+                    <button id="saveAdminTemplate" type="submit"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#save"></use></svg> Save template</button>
+                  </div>
                   <div class="template-form-grid">
                     <label class="template-field">Template name<input id="templateName" maxlength="80" required placeholder="e.g. Drums"></label>
-                    <label class="template-field">Saved by<input id="templateAuthor" maxlength="80" autocomplete="name" placeholder="Your name"></label>
                     <label class="template-field">Starting AUX mix<select id="templateAux" required></select></label>
-                    <label class="template-field">Starting view<select id="templateView"><option value="list">List</option><option value="grid">Grid on larger screens</option></select></label>
                   </div>
-                  <label class="template-filter"><input id="templateFavouritesOnly" type="checkbox"> Start with favourites only for this AUX</label>
-                  <p class="muted">Drag to reorder, star favourites and hide channels for each AUX. Arrow keys on a handle also move channels.</p>
+                  <div class="template-columns">
+                  <section class="template-channels-column" aria-labelledby="templateChannelsTitle">
+                  <h3 id="templateChannelsTitle">Channels</h3>
+                  <p class="muted">Drag to reorder, and hide channels for each AUX. Arrow keys on a handle also move channels.</p>
                   <div id="templateChannels" aria-label="Template channels"></div>
+                  </section>
                   <section class="template-groups" aria-labelledby="templateGroupsTitle">
                     <h3 id="templateGroupsTitle">Channel groups</h3>
                     <p class="muted">Grouped channels move together on one fader in the mobile app. A channel can only be in one group, and each group needs at least two channels.</p>
@@ -176,8 +199,7 @@
                       <div id="templateGlobalGroups" aria-labelledby="templateGlobalGroupsTitle"></div>
                     </div>
                   </section>
-                  <p id="templateSaveHint" class="muted"></p>
-                  <button id="saveAdminTemplate" type="submit"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#save"></use></svg> Save template</button>
+                  </div>
                 </fieldset>
               </form>
             </section>
@@ -363,6 +385,7 @@
     <script src="admin-password.js"></script>
     <script src="admin.js"></script>
     <script src="admin-templates.js"></script>
+    <script src="admin-access.js"></script>
     <script src="components/tabs.js"></script>
     <script src="desk-settings.js"></script>
   </body>

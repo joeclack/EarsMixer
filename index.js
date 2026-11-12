@@ -11,6 +11,7 @@ const configManager = require("./lib/config/configManager.js")
 const logger = require('./lib/logging/logger.js');
 const { getMainIPAddress, generateColour } = require('./lib/utils/utils.js');
 const { createAdminAuth } = require('./lib/admin-session.js');
+const { createClientAccess } = require('./lib/client-access.js');
 const { useTemplateRoutes, deviceUsername } = require('./lib/templates.js');
 const { dbToSlider, panToCentered, colourToRGB } = require('./lib/mix-values.js');
 const { QueryQueue } = require('./lib/query-queue.js');
@@ -22,6 +23,7 @@ const { musicianCors } = require('./lib/musician-cors.js');
 const { sendAuxPresence, broadcastAuxPresence } = require('./lib/aux-presence.js');
 const discoveryStops = new Set();
 let adminAuth;
+let clientAccess;
 let discoveryTimer = null;
 let nextClientId = 1;
 let qrURL = null;
@@ -214,8 +216,38 @@ function startServer()
 	useTemplateRoutes(app);
 	// Only connection information, so the tray QR still works with an admin password.
 	app.get('/api/connection', async (req, res, next) => {
-		try { res.set('Cache-Control', 'no-store').json(await getConnectionInfo()); }
+		try { res.set('Cache-Control', 'no-store').json({ ...await getConnectionInfo(), pinRequired: clientAccess.required() }); }
 		catch(error) { next(error); }
+	});
+	// Pair a mixer client with the connection PIN. Rate limited in clientAccess.
+	app.post('/api/pair', async (req, res, next) => {
+		try {
+			const result = await clientAccess.pair(req.body, req.socket.remoteAddress);
+			if(result.headers) res.set(result.headers);
+			res.status(result.status).set('Cache-Control', 'no-store').json(result.body);
+		} catch(error) { next(error); }
+	});
+	app.get('/api/admin/access', (req, res) => {
+		const online = new Set(connections.filter(socket => !socket.isObserver).map(socket => socket.clientInfo.deviceId).filter(Boolean));
+		const summary = clientAccess.summary();
+		res.json({ ...summary, devices: summary.devices.map(device => ({ ...device, online: online.has(device.id) })) });
+	});
+	app.put('/api/admin/access', async (req, res, next) => {
+		if(typeof req.body?.enabled !== 'boolean') { res.status(400).json({ error: 'Choose whether a PIN is required.' }); return; }
+		try { await clientAccess.setEnabled(req.body.enabled); res.json(clientAccess.summary()); } catch(error) { next(error); }
+	});
+	app.post('/api/admin/access/pin', async (req, res, next) => {
+		try { await clientAccess.changePin(); res.json(clientAccess.summary()); } catch(error) { next(error); }
+	});
+	app.post('/api/admin/access/revoke-all', async (req, res, next) => {
+		try { await clientAccess.revokeAll(); res.json(clientAccess.summary()); } catch(error) { next(error); }
+	});
+	app.delete('/api/admin/access/devices/:id', async (req, res, next) => {
+		try {
+			const removed = req.query.forget === '1' ? await clientAccess.forget(req.params.id) : await clientAccess.revoke(req.params.id);
+			if(!removed) { res.status(404).json({ error: 'That device is no longer listed. Refresh the list.' }); return; }
+			res.json(clientAccess.summary());
+		} catch(error) { next(error); }
 	});
 	app.get('/api/admin/status', async (req, res) => {
 		const mix = getVisibleConfig();
@@ -751,7 +783,8 @@ function warmAux(aux, priority = true, mix = getVisibleConfig()) {
 
 function startWebSocketServer() {
 	if(wss) return;
-	wss = new webSocket.Server({ server });
+	// Mixer messages are tiny; refuse anything large before parsing it.
+	wss = new webSocket.Server({ server, maxPayload: 64 * 1024 });
 	const presenceServer = wss;
 	const presenceHeartbeat = setInterval(() => {
 		for (const socket of presenceServer.clients) {
@@ -766,18 +799,36 @@ function startWebSocketServer() {
 		socket.isAlive = true;
 		socket.on('pong', () => { socket.isAlive = true; });
 		socket.isObserver = new URL(req.url, 'http://localhost').searchParams.get('role') === 'observer';
+		// The admin dashboard's live view observes with the admin session instead of a PIN.
+		if(socket.isObserver && !adminAuth.authenticated(req)) { socket.close(4403, 'Admin sign-in required'); return; }
 		// Settings changes close clients; reuse this configuration during fader moves.
 		socket.mixConfig = getVisibleConfig();
-		socket.clientInfo = { id: nextClientId++, username: null, address: req.socket.remoteAddress,
+		socket.clientInfo = { id: nextClientId++, username: null, deviceId: null, deviceName: null, address: req.socket.remoteAddress,
 			connectedAt: Date.now(), lastActivity: Date.now(), aux: null, log: [] };
-		connections.push(socket);
-		socket.send(buildConfig());
-		sendAuxPresence(socket, connections);
+		// A client joins the live mix only once admitted. With no PIN required it is
+		// admitted straight away; otherwise it must send its device and token first.
+		const admit = () => {
+			socket.admitted = true;
+			clearTimeout(socket.authTimer);
+			connections.push(socket);
+			socket.send(buildConfig());
+			sendAuxPresence(socket, connections);
+		};
+		if(socket.isObserver || !clientAccess.required()) admit();
+		else socket.authTimer = setTimeout(() => rejectClient(socket, 'required'), 10000);
 		socket.on('message', function(data) {
 			let msg;
 			try { msg = JSON.parse(data.toString()); } catch { return; }
 			if(!msg || typeof msg !== 'object' || Array.isArray(msg)) return;
 			if(socket.isObserver) return;
+			if('auth' in msg) {
+				const device = clientAccess.identify(msg.auth && typeof msg.auth === 'object' ? msg.auth : {}, req.socket.remoteAddress);
+				if(!device) { rejectClient(socket, 'required'); return; }
+				socket.clientInfo.deviceId = device.id; socket.clientInfo.deviceName = device.name ?? null;
+				if(!socket.admitted) admit();
+				return;
+			}
+			if(!socket.admitted) return;
 			socket.clientInfo.lastActivity = Date.now();
 			if('username' in msg) {
 				try {
@@ -821,6 +872,8 @@ function startWebSocketServer() {
 			broadcast(msg, socket);
 		});
 		socket.on('close', () => {
+			clearTimeout(socket.authTimer);
+			if(!socket.admitted) return;
 			if(!socket.isObserver) disconnectedClients.unshift(serializeClient(socket, Date.now()));
 			if(disconnectedClients.length > 50) disconnectedClients.pop();
 			connections = connections.filter(connection => connection !== socket);
@@ -829,6 +882,19 @@ function startWebSocketServer() {
 		socket.on('error', err => logger.debug('Client socket error: ' + err.message));
 	});
 	wss.on('error', err => logger.error('wss error: ' + err));
+}
+
+/**
+ * Tell a client it needs the connection PIN (or that its access was revoked),
+ * then close it. Clients stop reconnecting and ask for the PIN.
+ */
+function rejectClient(socket, reason)
+{
+	clearTimeout(socket.authTimer);
+	if(socket.readyState === webSocket.OPEN) {
+		socket.send(JSON.stringify({ auth: reason }));
+		socket.close(4401, reason === 'revoked' ? 'Access revoked' : 'PIN required');
+	}
 }
 
 /**
@@ -1267,8 +1333,17 @@ for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => {
 	});
 });
 
-createAdminAuth().then(auth => {
+Promise.all([createAdminAuth(), createClientAccess()]).then(([auth, access]) => {
 	adminAuth = auth;
+	clientAccess = access;
+	// When the PIN is switched on, changed or a device is revoked, disconnect
+	// any client that no longer has access; it will be asked for the PIN.
+	access.onChange(() => {
+		for(const socket of [...connections]) {
+			if(socket.isObserver || access.isAuthorized(socket.clientInfo.deviceId)) continue;
+			rejectClient(socket, 'revoked');
+		}
+	});
 	startServer();
 	startOSC();
 }).catch(error => { logger.error(error.stack || error); process.exit(1); });

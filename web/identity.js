@@ -6,6 +6,29 @@ const nicknameSetupKey = "earsmixer.nickname-setup.v1";
 function getDeviceNickname() {
   try { return localStorage.getItem("deviceUsername") || null; } catch { return null; }
 }
+// A stable ID for this browser, so the server recognises the device when its
+// IP address changes. It is an identifier, not a secret; access comes from the
+// token the server issues after the connection PIN is entered.
+function getDeviceId() {
+  try {
+    let id = localStorage.getItem("earsmixer.device-id");
+    if (!id || !/^[A-Za-z0-9-]{8,64}$/.test(id)) {
+      const bytes = crypto.getRandomValues(new Uint8Array(16));
+      id = Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+      localStorage.setItem("earsmixer.device-id", id);
+    }
+    return id;
+  } catch { return null; }
+}
+function getAccessToken() { try { return localStorage.getItem("earsmixer.access-token") || null; } catch { return null; } }
+function setAccessToken(token) {
+  try { if (token) localStorage.setItem("earsmixer.access-token", token); else localStorage.removeItem("earsmixer.access-token"); } catch {}
+}
+// Sent first on every connection; the server asks for the PIN if it is needed.
+function sendClientAuth(socket) {
+  if (socket && socket.readyState === WebSocket.OPEN)
+    socket.send(JSON.stringify({ auth: { device: getDeviceId(), token: getAccessToken(), name: getDeviceNickname() } }));
+}
 function sendDeviceNickname(socket) {
   // Keep the existing wire field so web and native clients share the same presence protocol.
   if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ username: getDeviceNickname() }));

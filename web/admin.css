@@ -177,3 +177,16 @@ button:disabled, fieldset:disabled { opacity: 0.55; cursor: default; }
 
 .settings-link { display: inline-flex; align-items: center; gap: 8px; color: #aec9f0; text-decoration: none; font-size: 14px; padding: 8px 0; }
 .settings-link:hover { color: white; text-decoration: underline; }
+
+.access-toggle { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 14px; font-weight: 600; }
+.access-pin { display: grid; gap: 8px; margin: 12px 0; padding: 14px; border: 1px solid #39414e; border-radius: 10px; background: #20252d; }
+.access-pin-label { font-size: 12px; color: #a8afb9; }
+.access-pin-value { font: 600 34px/1.1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0.18em; color: #f3f4f6; }
+.access-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.access-devices-title { margin: 18px 0 4px; font-size: 14px; }
+.access-device { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid #30353e; }
+.access-device-name { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.access-device-meta { display: block; font-size: 12px; color: #a8afb9; }
+.access-device-status { font-size: 12px; padding: 2px 8px; border-radius: 999px; margin-left: 6px; border: 1px solid #444b57; color: #a8afb9; }
+.access-device-status.online { border-color: #4fb98f; color: #8be0bd; }
+.access-device-actions { display: flex; gap: 6px; }

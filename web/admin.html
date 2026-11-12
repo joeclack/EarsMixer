@@ -135,6 +135,24 @@
             </section>
 
             <section class="page" data-page="clients">
+              <section class="card" aria-labelledby="accessTitle">
+                <h2 id="accessTitle">Mobile access</h2>
+                <label class="access-toggle"><input id="accessRequired" type="checkbox"> Require a PIN to connect</label>
+                <p class="muted">When on, the mobile app and browser mixer ask for this PIN once per device. Devices stay signed in until you change the PIN or sign them out.</p>
+                <div id="accessPinPanel" class="access-pin" hidden>
+                  <span class="access-pin-label">Connection PIN</span>
+                  <output id="accessPin" class="access-pin-value" aria-live="polite">——————</output>
+                  <div class="access-actions">
+                    <button id="copyAccessPin" type="button">Copy PIN</button>
+                    <button id="changeAccessPin" type="button">Change PIN</button>
+                    <button id="revokeAllAccess" type="button">Sign out all devices</button>
+                  </div>
+                </div>
+                <p id="accessMessage" role="status" aria-live="polite"></p>
+                <h3 class="access-devices-title">Devices</h3>
+                <p class="muted">Each device is recognised by an ID its app creates, so it stays the same when its IP address changes.</p>
+                <div id="accessDevices"></div>
+              </section>
               <section class="card">
                 <h2>Connected clients</h2>
                 <p id="noClients" class="muted" hidden>No clients connected.</p>
@@ -351,6 +369,7 @@
     <script src="admin-password.js"></script>
     <script src="admin.js"></script>
     <script src="admin-templates.js"></script>
+    <script src="admin-access.js"></script>
     <script src="components/tabs.js"></script>
     <script src="desk-settings.js"></script>
   </body>

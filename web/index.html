@@ -98,6 +98,15 @@
         <div class="dialog-actions"><button type="submit">Done</button><button id="skipNickname" type="button" hidden>Skip</button></div>
       </form>
     </dialog>
+    <dialog id="pinDialog" class="settings-dialog" aria-labelledby="pinTitle">
+      <div class="settings-dialog-header"><h2 id="pinTitle">Enter connection PIN</h2></div>
+      <form id="pinForm" class="settings-section">
+        <label for="pin">Ask the person running the mixer for the 6-digit PIN.</label>
+        <input id="pin" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="7" required>
+        <p id="pinError" class="settings-detail" role="alert"></p>
+        <div class="dialog-actions"><button id="pinSubmit" type="submit">Connect</button></div>
+      </form>
+    </dialog>
     <script src="vendor/Sortable.min.js"></script>
     <script src="icons.js"></script>
     <script src="identity.js?v=2.9.0"></script>

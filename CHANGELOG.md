@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add an optional connection PIN for the mobile app and browser mixer. On the admin Clients page, switch on Require a PIN to connect, share the 6-digit PIN shown there, change it, or sign out every device. A device enters the PIN once and stays signed in until the PIN changes or it is signed out. PIN attempts are rate limited, and access tokens are stored hashed.
+- Recognise devices by an ID each client creates, rather than by IP address. The Clients page lists devices with their name, last address and when they were last seen, and can sign out or forget each one.
+- Refuse WebSocket messages over 64 KB, and require the admin session for the dashboard's observer connection.
+
 ## 1.7.1 — 2026-11-09
 
 Windows product version: **1.7.1**. Node package version: **2.9.1**.

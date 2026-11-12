@@ -260,6 +260,8 @@ function onMessage(event) {
   let json;
   try { json = JSON.parse(event.data); } catch { return; }
   if (!json || typeof json !== "object") return;
+  // The server needs the connection PIN, or this device was signed out.
+  if (json.auth === "required" || json.auth === "revoked") { requestPin(json.auth === "revoked"); return; }
   if (json.config) {
     mixerConfigReady = true;
     buildChannels(Array.isArray(json.config.channels) ? json.config.channels : []);
@@ -443,12 +445,41 @@ doneLayoutButton.addEventListener("click", () => {
   controlsToggle.focus();
 });
 
+// Connection PIN: shown when the server asks for it, then the connection resumes.
+const pinDialog = document.getElementById("pinDialog");
+const pinInput = document.getElementById("pin");
+const pinError = document.getElementById("pinError");
+let pinNeeded = false;
+function requestPin(revoked) {
+  pinNeeded = true;
+  setAccessToken(null);
+  clearTimeout(reconnectTimer);
+  pinError.textContent = revoked ? "This device was signed out. Enter the current PIN to reconnect." : "";
+  if (!pinDialog.open) { pinInput.value = ""; pinDialog.showModal(); pinInput.focus(); }
+}
+pinDialog.addEventListener("cancel", event => event.preventDefault());
+document.getElementById("pinForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  const button = document.getElementById("pinSubmit");
+  button.disabled = true; pinError.textContent = "";
+  try {
+    const response = await fetch("/api/pair", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin: pinInput.value, device: getDeviceId(), name: getDeviceNickname() }) });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) { pinError.textContent = body.error || "Could not check the PIN. Try again."; pinInput.select(); return; }
+    setAccessToken(body.token);
+    pinNeeded = false; pinDialog.close();
+    startWebsocket();
+  } catch { pinError.textContent = "Could not reach the mixer. Check your Wi-Fi and try again."; }
+  finally { button.disabled = false; }
+});
+
 function startWebsocket() {
   clearTimeout(reconnectTimer);
   clearTimeout(connectionTimer);
   ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host);
   const socket = ws;
-  socket.onopen = () => { if (ws === socket) { clearTimeout(connectionTimer); setConnectionStatus(true); sendDeviceNickname(socket); } };
+  socket.onopen = () => { if (ws === socket) { clearTimeout(connectionTimer); setConnectionStatus(true); sendClientAuth(socket); sendDeviceNickname(socket); } };
   socket.onmessage = event => { if (ws === socket) onMessage(event); };
   socket.onerror = () => socket.close();
   socket.onclose = () => {
@@ -458,7 +489,8 @@ function startWebsocket() {
     clearPendingWrites();
     for (const { slider } of channelElements.values()) { slider.dataset.ready = "false"; updateLevel(slider, null); }
     setConnectionStatus(false); updateLayoutInputs();
-    reconnectTimer = setTimeout(startWebsocket, 2000);
+    // Wait for the PIN instead of reconnecting in a loop.
+    if (!pinNeeded) reconnectTimer = setTimeout(startWebsocket, 2000);
   };
   // Retry a stalled handshake, including the intermittent iOS Safari failure.
   connectionTimer = setTimeout(() => { if (ws === socket && socket.readyState === WebSocket.CONNECTING) socket.close(); }, 3000);

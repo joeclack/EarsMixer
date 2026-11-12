@@ -81,13 +81,13 @@ test("offline v2: discovery, scoped clients, dashboard, templates, admin session
     assert.equal((await fetch(publicBase + "/admin")).status, 200);
     assert(output.includes(`Demo mixer: ${publicBase}\nAdmin: ${publicBase}/admin`));
     const connection = await (await fetch(base + "/api/connection")).json();
-    assert.deepEqual(Object.keys(connection).sort(), ["qr", "url"]);
+    assert.deepEqual(Object.keys(connection).sort(), ["pinRequired", "qr", "url"]); assert.equal(connection.pinRequired, false);
     assert.equal(connection.url, publicBase + "/");
     assert.match(connection.qr, /^data:image\/png;base64,/);
     const browserHeaders = { Origin: "http://localhost:8081" };
     const browserProbe = await fetch(base + "/api/connection", { headers: browserHeaders });
     assert.equal(browserProbe.headers.get("access-control-allow-origin"), "*");
-    assert.deepEqual(Object.keys(await browserProbe.json()).sort(), ["qr", "url"]);
+    assert.deepEqual(Object.keys(await browserProbe.json()).sort(), ["pinRequired", "qr", "url"]);
     const browserTemplates = await fetch(base + "/api/templates", { headers: browserHeaders });
     assert.equal(browserTemplates.headers.get("access-control-allow-origin"), "*");
     assert.equal(browserTemplates.status, 200);

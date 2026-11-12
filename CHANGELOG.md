@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Accept OSC only from the desk's address and configured external devices. A desk entered as a hostname is not restricted.
+- Require the admin dashboard's live connection to come from the dashboard itself, and ignore floods of more than 300 messages a second from one client.
+- Save settings, the current state and presets by writing a temporary file and renaming it, so an interrupted save cannot corrupt them.
+- Validate external OSC devices when saving desk settings: each needs a name, an IP address or hostname and a valid port.
+- Split the server's single index.js into modules under lib/server, with no change in behaviour.
 - Add an optional connection PIN for the mobile app and browser mixer. On the admin Clients page, switch on Require a PIN to connect, share the 6-digit PIN shown there, change it, or sign out every device. A device enters the PIN once and stays signed in until the PIN changes or it is signed out. PIN attempts are rate limited, and access tokens are stored hashed.
 - Recognise devices by an ID each client creates, rather than by IP address. The Clients page lists devices with their name, last address and when they were last seen, and can sign out or forget each one.
 - Refuse WebSocket messages over 64 KB, and require the admin session for the dashboard's observer connection.

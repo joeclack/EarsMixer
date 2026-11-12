@@ -450,16 +450,12 @@ const pinDialog = document.getElementById("pinDialog");
 const pinInput = document.getElementById("pin");
 const pinError = document.getElementById("pinError");
 let pinNeeded = false;
-// A PIN carried by a scanned link (#pin=123456) is tried once and removed from the address bar.
-let linkPin = /^#pin=(\d{6})$/.exec(location.hash)?.[1] || null;
-if (linkPin) history.replaceState(null, "", location.pathname + location.search);
 function requestPin(revoked) {
   pinNeeded = true;
   setAccessToken(null);
   clearTimeout(reconnectTimer);
   pinError.textContent = revoked ? "This device was signed out. Enter the current PIN to reconnect." : "";
   if (!pinDialog.open) { pinInput.value = ""; pinDialog.showModal(); pinInput.focus(); }
-  if (linkPin) { pinInput.value = linkPin; linkPin = null; document.getElementById("pinForm").requestSubmit(); }
 }
 pinDialog.addEventListener("cancel", event => event.preventDefault());
 document.getElementById("pinForm").addEventListener("submit", async event => {

@@ -339,7 +339,7 @@ test("offline v2: discovery, scoped clients, dashboard, templates, admin session
     assert.equal(customConnection.url, "http://ears.glow.uk/");
     assert.equal(customConnection.qr, await QRCode.toDataURL(customConnection.url, { width: 320, margin: 2 }));
     assert.equal((await status()).customMixerUrl, "http://ears.glow.uk");
-    assert.deepEqual(await (await request("/api/connection")).json(), { url: customConnection.url, qr: customConnection.qr });
+    assert.deepEqual(await (await request("/api/connection")).json(), { url: customConnection.url, qr: customConnection.qr, pinRequired: false });
     const savedWithCustomUrl = JSON.parse(await fs.readFile(globalPath, "utf8"));
     assert.equal(savedWithCustomUrl.server.publicUrl, "http://ears.glow.uk");
     assert.equal(savedWithCustomUrl.server.port, webPort);
@@ -353,7 +353,7 @@ test("offline v2: discovery, scoped clients, dashboard, templates, admin session
     await waitFor(() => output.includes("Webmixer ready to use."), "demo restart with saved custom URL");
     assert(output.includes("Demo mixer: http://ears.glow.uk"));
     assert.equal((await status()).customMixerUrl, "http://ears.glow.uk");
-    assert.deepEqual(await (await request("/api/connection")).json(), { url: customConnection.url, qr: customConnection.qr });
+    assert.deepEqual(await (await request("/api/connection")).json(), { url: customConnection.url, qr: customConnection.qr, pinRequired: false });
     customUrlResponse = await request("/api/admin/mixer-url", "PUT", { url: "" });
     assert.equal(customUrlResponse.status, 200);
     assert.equal((await customUrlResponse.json()).url, publicBase + "/");

@@ -21,7 +21,7 @@ button, input, select { font: inherit; color: inherit; }
 
 .shell { display: flex; flex-wrap: wrap; min-height: 100vh; }
 .sidebar { flex: 0 0 208px; display: flex; flex-direction: column; background: var(--panel); border-right: 1px solid var(--line); padding-bottom: 12px; }
-.brand { display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 18px; border-bottom: 1px solid var(--line); font-size: 16px; font-weight: 600; }
+.brand { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 0 18px; border-bottom: 1px solid var(--line); font-size: 16px; font-weight: 600; }
 .brand svg { color: var(--accent); }
 .nav-title { padding: 16px 18px 6px; }
 .nav-item { display: flex; align-items: center; gap: 10px; min-height: 44px; margin: 0 6px; padding: 0 12px; border-radius: 4px; color: var(--muted); text-decoration: none; font-weight: 400; }
@@ -29,8 +29,9 @@ button, input, select { font: inherit; color: inherit; }
 .nav-item.active { color: var(--text); background: var(--raised); font-weight: 600; }
 .version { margin-top: auto; padding: 12px 18px 4px; color: var(--muted); font-size: 12px; }
 .content { flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; }
-.status-strip { display: flex; flex-wrap: wrap; background: var(--panel); border-bottom: 1px solid var(--line); }
-.status-cell { flex: 1 1 150px; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 10px 16px; border-right: 1px solid var(--line); }
+/* Match the sidebar header height so their bottom borders line up. */
+.status-strip { display: flex; flex-wrap: wrap; min-height: 56px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.status-cell { flex: 1 1 150px; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 8px 16px; border-right: 1px solid var(--line); }
 .status-value { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 main { flex: 1; padding: 24px 28px 40px; display: flex; flex-direction: column; gap: 16px; }
 .page-head h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.3px; }

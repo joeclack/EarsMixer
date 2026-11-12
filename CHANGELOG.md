@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Rebuild the admin dashboard's Overview, Live mix, Clients and Templates pages as a Preact app with a new dark layout. A status strip shows the desk, snapshot, devices, access and server address on every page. Live mix shows every AUX mix's sends in one matrix. Desk settings and System open in the classic dashboard until they are rebuilt.
+- In the template editor, show channel groups inside the channel list. Drag a group to move it with its channels, and reorder channels inside their group.
 - Accept OSC only from the desk's address and configured external devices. A desk entered as a hostname is not restricted.
 - Require the admin dashboard's live connection to come from the dashboard itself, and ignore floods of more than 300 messages a second from one client.
 - Save settings, the current state and presets by writing a temporary file and renaming it, so an interrupted save cannot corrupt them.

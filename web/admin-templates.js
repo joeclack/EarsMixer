@@ -3,10 +3,7 @@ const adminTemplateSelect = document.getElementById("adminTemplateSelect");
 const templateEditor = document.getElementById("templateEditor");
 const templateNameInput = document.getElementById("templateName");
 const templateAuxInput = document.getElementById("templateAux");
-const templateViewInput = document.getElementById("templateView");
 const templateRows = document.getElementById("templateChannels");
-const templateFilterInput = document.getElementById("templateFavouritesOnly");
-const templateAuthorInput = document.getElementById("templateAuthor");
 let adminTemplates = [];
 let templateChannels = [];
 let templateAuxes = [];
@@ -14,7 +11,6 @@ let templateDraft = null;
 let templateSorter = null;
 let adminTemplateBusy = false;
 let templateConfigSignature = "";
-templateAuthorInput.value = localStorage.getItem("templateAdminName") || localStorage.getItem("deviceUsername") || "Admin";
 async function adminTemplateRequest(url, options) {
   const response = await adminFetch(url, options);
   const body = await response.json();
@@ -32,7 +28,7 @@ function updateAdminTemplateControls() {
   adminTemplateSelect.disabled = adminTemplateBusy || !adminTemplates.length;
   document.getElementById("templateFields").disabled = adminTemplateBusy || !templateAuxes.length;
   if (templateSorter) templateSorter.option("disabled", adminTemplateBusy);
-  document.getElementById("adminTemplateUpdated").textContent = selected ? "Created by " + (selected.createdBy || "an unnamed admin") + " · Updated " + new Date(selected.updatedAt).toLocaleString() + " by " + (selected.updatedBy || "an unnamed admin") : "";
+  document.getElementById("adminTemplateUpdated").textContent = selected ? "Updated " + new Date(selected.updatedAt).toLocaleString() : "";
   const name = templateNameInput.value.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
   const existing = adminTemplates.find(template => template.name.toLowerCase() === name);
   document.getElementById("templateSaveHint").textContent = existing ? "Saving updates “" + existing.name + "”." : "";
@@ -44,11 +40,6 @@ async function refreshAdminTemplates(id = adminTemplateSelect.value) {
   for (const template of adminTemplates) adminTemplateSelect.add(new Option(template.name, template.id));
   if (id) adminTemplateSelect.value = id;
   updateAdminTemplateControls();
-}
-function draftAuxSettings() {
-  const aux = templateAuxInput.value;
-  if (!templateDraft.favouritesByAux[aux]) templateDraft.favouritesByAux[aux] = { channels: [], enabled: false };
-  return templateDraft.favouritesByAux[aux];
 }
 function draftHidden() { return templateDraft.hiddenByAux[templateAuxInput.value] || []; }
 // Groups follow the mobile app's rules: unique IDs across all groups, and no
@@ -122,49 +113,46 @@ function renderTemplateChannels() {
   templateRows.replaceChildren();
   const channels = new Map(templateChannels.map(channel => [channel.channel, channel]));
   const order = [...templateDraft.channelOrder, ...channels.keys()].filter((id, index, ids) => channels.has(id) && ids.indexOf(id) === index);
-  const settings = draftAuxSettings(); templateFilterInput.checked = settings.enabled;
   for (const id of order) {
     const channel = channels.get(id), row = document.createElement("div"); row.className = "template-channel"; row.dataset.channel = String(id);
-    row.innerHTML = '<button type="button" class="template-drag-handle">' + appIcon("gripVertical") + '</button><span class="template-channel-name"></span><label class="template-hide"><input type="checkbox"> Hidden</label><label class="template-star"><input type="checkbox">' + appIcon("star") + '</label>';
+    row.innerHTML = '<button type="button" class="template-drag-handle">' + appIcon("gripVertical") + '</button><span class="template-channel-name"></span><label class="template-hide"><input type="checkbox"> Hidden</label>';
     row.querySelector(".template-channel-name").textContent = channel.label || "Channel " + id;
     const handle = row.querySelector("button"); handle.setAttribute("aria-label", "Move " + (channel.label || "Channel " + id)); handle.addEventListener("keydown", moveTemplateChannel);
     const hide = row.querySelector(".template-hide input"), hidden = draftHidden();
     hide.checked = hidden.includes(id); hide.setAttribute("aria-label", "Hide " + (channel.label || "Channel " + id) + " in this AUX");
     hide.addEventListener("change", () => { const list = draftHidden(); const next = list.filter(value => value !== id); if (hide.checked) next.push(id); templateDraft.hiddenByAux[templateAuxInput.value] = next; });
-    const star = row.querySelector(".template-star input"); star.checked = settings.channels.includes(id); star.setAttribute("aria-label", "Favourite " + (channel.label || "Channel " + id));
-    star.addEventListener("change", () => { settings.channels = Array.from(templateRows.querySelectorAll('.template-star input:checked'), input => Number(input.closest(".template-channel").dataset.channel)); });
     templateRows.appendChild(row);
   }
   saveDraftOrder();
-  templateSorter = new Sortable(templateRows, { draggable: "> .template-channel", handle: ".template-drag-handle", filter: ".template-star, .template-hide", preventOnFilter: false,
+  templateSorter = new Sortable(templateRows, { draggable: "> .template-channel", handle: ".template-drag-handle", filter: ".template-hide", preventOnFilter: false,
     animation: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 180,
-    direction: () => getComputedStyle(templateRows).gridTemplateColumns.split(" ").length > 1 ? "horizontal" : "vertical",
+    direction: "vertical",
     ghostClass: "template-placeholder", dragClass: "template-drag", forceFallback: true, fallbackOnBody: true, fallbackTolerance: 4, onEnd: saveDraftOrder });
-  templateRows.classList.toggle("template-grid", templateDraft.view === "grid");
-  updateTemplateSortingMode();
   renderTemplateGroups();
   updateAdminTemplateControls();
 }
-function updateTemplateSortingMode() {
-  if (templateSorter) templateSorter.option("handle", templateDraft?.view === "grid" && window.matchMedia("(min-width: 700px)").matches ? null : ".template-drag-handle");
-}
-window.matchMedia("(min-width: 700px)").addEventListener("change", updateTemplateSortingMode);
 function moveTemplateChannel(event) {
-  if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
+  if (!["ArrowUp", "ArrowDown"].includes(event.key)) return;
   event.preventDefault(); const row = event.currentTarget.closest(".template-channel"); const rows = Array.from(templateRows.children);
-  const columns = getComputedStyle(templateRows).gridTemplateColumns.split(" ").length;
-  const delta = event.key === "ArrowUp" ? -columns : event.key === "ArrowDown" ? columns : event.key === "ArrowLeft" ? -1 : 1;
+  const delta = event.key === "ArrowUp" ? -1 : 1;
   const index = rows.indexOf(row) + delta; if (index < 0 || index >= rows.length) return;
   templateRows.insertBefore(row, delta > 0 ? rows[index].nextSibling : rows[index]); event.currentTarget.focus(); row.scrollIntoView({ block: "nearest" }); saveDraftOrder();
 }
 function showTemplateDraft(name, config) {
   templateNameInput.value = name; templateDraft = JSON.parse(JSON.stringify(config));
   templateDraft.hiddenByAux ||= {}; templateDraft.groupsByAux ||= {}; templateDraft.globalGroups ||= [];
+  // Older templates showed only favourites on an AUX. Keep the same channels
+  // visible by hiding the rest; favourites and the starting view are no longer used.
+  for (const [aux, settings] of Object.entries(templateDraft.favouritesByAux || {})) {
+    if (settings?.enabled && !templateDraft.hiddenByAux[aux] && templateChannels.length)
+      templateDraft.hiddenByAux[aux] = templateChannels.map(channel => channel.channel).filter(id => !settings.channels.includes(id));
+  }
+  templateDraft.favouritesByAux = {}; templateDraft.view = "list";
   templateAuxInput.replaceChildren();
   for (const aux of templateAuxes) templateAuxInput.add(new Option(aux.label || "AUX " + aux.channel, String(aux.channel)));
   if (templateAuxes.some(aux => aux.channel === templateDraft.selectedAux)) templateAuxInput.value = String(templateDraft.selectedAux);
   templateDraft.selectedAux = Number(templateAuxInput.value);
-  templateViewInput.value = templateDraft.view; templateEditor.hidden = false;
+  templateEditor.hidden = false;
   document.getElementById("templateEditorTitle").textContent = name ? "Edit template" : "New template";
   renderTemplateChannels();
 }
@@ -209,16 +197,14 @@ document.getElementById("deleteSavedTemplate").addEventListener("click", async (
 adminTemplateSelect.addEventListener("change", updateAdminTemplateControls);
 templateNameInput.addEventListener("input", updateAdminTemplateControls);
 templateAuxInput.addEventListener("change", () => { templateDraft.selectedAux = Number(templateAuxInput.value); renderTemplateChannels(); });
-templateViewInput.addEventListener("change", () => { templateDraft.view = templateViewInput.value; templateRows.classList.toggle("template-grid", templateDraft.view === "grid"); updateTemplateSortingMode(); });
-templateFilterInput.addEventListener("change", () => { draftAuxSettings().enabled = templateFilterInput.checked; });
 templateEditor.addEventListener("submit", async event => {
   event.preventDefault(); if (!templateDraft || adminTemplateBusy) return;
   const incomplete = incompleteTemplateGroup();
   if (incomplete) { adminTemplateMessage(incomplete, true); return; }
   adminTemplateBusy = true; updateAdminTemplateControls(); adminTemplateMessage("");
   try {
-    const template = await adminTemplateRequest("/api/admin/templates", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: templateNameInput.value, username: templateAuthorInput.value, config: templateSaveConfig() }) });
-    localStorage.setItem("templateAdminName", templateAuthorInput.value); templateNameInput.value = template.name;
+    const template = await adminTemplateRequest("/api/admin/templates", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: templateNameInput.value, config: templateSaveConfig() }) });
+    templateNameInput.value = template.name;
     document.getElementById("templateEditorTitle").textContent = "Edit template";
     adminTemplateMessage("Saved “" + template.name + "”.");
     try { await refreshAdminTemplates(template.id); }

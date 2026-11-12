@@ -153,20 +153,23 @@ tbody tr:last-child td { border-bottom: 0; }
 .template-field input, .template-field select { width: 100%; min-width: 0; min-height: 42px; padding: 9px 10px; border: 1px solid #444b57; border-radius: 7px; color: #f3f4f6; background: #272c34; font-size: 14px; }
 .template-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 18px; }
 #templateFields { padding: 0; margin: 0; border: 0; min-width: 0; }
-.template-filter { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 13px; }
+.template-editor-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; }
+.template-editor-head h2 { margin: 0; flex: 1; }
+.template-editor-head #templateSaveHint { margin: 0; }
 #templateChannels { display: grid; gap: 8px; margin: 16px 0; }
 .template-channel { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px; border: 1px solid #39414e; border-radius: 10px; background: #20252d; }
 .template-channel-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 14px; }
 .template-drag-handle { display: flex; align-items: center; justify-content: center; width: 40px; min-width: 40px; height: 40px; padding: 0; color: #aeb7c5; cursor: grab; touch-action: none; }
-.template-star { position: relative; display: flex; align-items: center; justify-content: center; width: 40px; min-width: 40px; height: 40px; color: #7f8998; cursor: pointer; }
-.template-star input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
-.template-star:has(input:checked) { color: #e6be6c; }
-.template-star:has(input:checked) .app-icon { fill: currentColor; }
-.template-star:has(input:focus-visible) { outline: 2px solid #a5c5ff; border-radius: 6px; }
 .template-hide { display: flex; align-items: center; gap: 6px; padding: 0 8px; min-height: 40px; font-size: 12px; color: #a8afb9; cursor: pointer; }
 .template-channel:has(.template-hide input:checked) .template-channel-name { color: #7f8998; text-decoration: line-through; }
 .template-groups { margin: 24px 0 16px; padding-top: 16px; border-top: 1px solid #30353e; }
-.template-groups h3 { margin: 0 0 6px; font-size: 15px; }
+.template-groups h3, .template-channels-column h3 { margin: 0 0 6px; font-size: 15px; }
+.template-channels-column { min-width: 0; }
+/* Channels on the left, groups on the right; stacked on narrower screens. */
+@media (min-width: 1000px) {
+  .template-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+  .template-columns .template-groups { margin: 0; padding: 0 0 0 24px; border-top: 0; border-left: 1px solid #30353e; }
+}
 .template-group-scope { margin-top: 16px; }
 .template-group-scope-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
 .template-group-scope-head h4 { margin: 0; font-size: 13px; color: #a8afb9; }
@@ -183,12 +186,10 @@ tbody tr:last-child td { border-bottom: 0; }
 .template-drag { box-shadow: 0 12px 30px #0008; }
 #adminTemplateMessage { font-size: 13px; color: #87d9b4; overflow-wrap: anywhere; }
 #adminTemplateMessage.error { color: #edbd80; }
-#adminTemplateUpdated, #templateSaveHint { margin-top: 12px; }
+#adminTemplateUpdated { margin-top: 12px; }
 button:disabled, fieldset:disabled { opacity: 0.55; cursor: default; }
 #saveAdminTemplate, #newTemplate { display: inline-flex; align-items: center; gap: 7px; }
 .client-header strong { overflow-wrap: anywhere; }
-@media (min-width: 700px) { #templateChannels.template-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .template-grid .template-channel { min-height: 90px; cursor: grab; touch-action: none; } }
-@media (min-width: 1300px) { #templateChannels.template-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 500px) { .template-form-grid { grid-template-columns: minmax(0, 1fr); } }
 
 .settings-link { display: inline-flex; align-items: center; gap: 8px; color: #aec9f0; text-decoration: none; font-size: 14px; padding: 8px 0; }

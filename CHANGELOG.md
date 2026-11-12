@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.8.0 — 2026-11-12
+
+Windows product version: **1.8.0**. Node package version: **2.10.0**.
+
 - Rebuild the admin dashboard as a Preact app with a new dark layout. A status strip shows the desk, snapshot, devices, access and server address on every page. Live mix shows every AUX mix's sends in one matrix.
 - Rebuild Desk settings and System in the new dashboard and remove the old one. Desk settings is split into Connection, AUX mixes, Channels, External devices and Presets, shows whether the desk is answering, and keeps unsaved changes in a bar with Discard and Save. System holds the admin password and version. The sign-in page matches the new look.
 - In the template editor, show channel groups inside the channel list. Drag a group to move it with its channels, and reorder channels inside their group.

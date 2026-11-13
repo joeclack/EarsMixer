@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix browser mixer faders staying disabled in Safari until you switched apps and back. Safari freezes a page's timers and WebSocket messages while it is opening or in the background. The mixer now rechecks when the page is shown, focused or touched: it reconnects a closed connection and fetches any levels that have not arrived. A connection that looks open but never answers is replaced, and level queries pause while the page is hidden instead of running out their retries.
+
 ## 1.10.1 — 2026-11-13
 
 Product version: **1.10.1**. Node package version: **2.12.1**.

@@ -478,3 +478,53 @@ for (const [name, source] of [["source", mixerSource], ["production", fs.readFil
     });
   }
 }
+
+test("Safari: queries pause while the page is hidden and resume when it is shown", () => {
+  const mixer = createMixer();
+  mixer.run('document.visibilityState = "hidden"');
+  mixer.socket().sent.length = 0;
+  mixer.message({ address: "/MixReload", args: [] });
+  mixer.tick(5000);
+  // A frozen background page sends nothing and does not give up on the socket.
+  assert.equal(mixer.socket().sent.filter(message => /\/\?$/.test(message.address || "")).length, 0);
+  assert.equal(mixer.socket().readyState, 1);
+  mixer.run('document.visibilityState = "visible"; document.dispatchEvent({ type: "visibilitychange" })');
+  mixer.tick(30);
+  const queried = mixer.socket().sent.filter(message => /\/\?$/.test(message.address || "")).map(message => message.address);
+  assert.deepEqual(queried.sort(), ["/Input_Channels/2/Aux_Send/2/send_level/?", "/Input_Channels/65/Aux_Send/2/send_level/?"]);
+  mixer.level(2, 2, -20); mixer.level(65, 2, 0);
+  assert.equal(mixer.slider(2).disabled, false);
+  assert.equal(mixer.slider(65).disabled, false);
+  assert.equal(mixer.controls.get("mixerStatus").textContent, "Connected");
+});
+
+test("Safari: a socket that looks open but never answers is replaced", () => {
+  const mixer = createMixer();
+  const frozen = mixer.socket();
+  mixer.tick(2100);
+  // Every query went unanswered, so the mixer closes the dead socket and reconnects.
+  assert.equal(frozen.readyState, 3);
+  mixer.tick(2000);
+  assert.notEqual(mixer.socket(), frozen);
+  assert.equal(mixer.socket().readyState, 1);
+});
+
+test("a desk that answers some channels keeps the socket and reports the rest", () => {
+  const mixer = createMixer();
+  const socket = mixer.socket();
+  mixer.tick(30);
+  mixer.level(2, 2, -20);
+  mixer.tick(2100);
+  assert.equal(socket.readyState, 1);
+  assert.equal(mixer.controls.get("mixerStatus").textContent, "Some channels unavailable · change mix to retry");
+});
+
+test("showing the page reconnects a closed socket straight away", () => {
+  const mixer = createMixer();
+  const old = mixer.socket();
+  mixer.run("pinNeeded = false");
+  old.close();
+  mixer.run('document.dispatchEvent({ type: "visibilitychange" })');
+  assert.notEqual(mixer.socket(), old);
+  assert.equal(mixer.socket().readyState, 1);
+});

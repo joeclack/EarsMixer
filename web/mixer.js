@@ -19,6 +19,9 @@ let queryGeneration = 0;
 let editingLayout = false;
 let channelSorter = null;
 let mixerConfigReady = false;
+// Level answers received from the desk, to tell a slow desk from a frozen socket.
+let levelResponses = 0;
+let resumeCheck = null;
 const channelElements = new Map();
 const pendingWrites = new Map();
 const mixerStatus = document.getElementById("mixerStatus");
@@ -230,12 +233,15 @@ function requestValues({ preserveValues = false } = {}) {
   updateLayoutInputs(); updateMixStatus();
   if (!ws || ws.readyState !== WebSocket.OPEN || !auxSelect.value) return;
   const aux = auxSelect.value;
+  const responsesBefore = levelResponses;
   ws.send(JSON.stringify({ selectedAux: Number(aux) }));
   function queryMissing(attempt = 0) {
     const missing = Array.from(channelElements.values()).filter(({ slider }) => slider.dataset.ready !== "true");
     let index = 0;
     function queryNext() {
       if (generation !== queryGeneration || aux !== auxSelect.value || !ws || ws.readyState !== WebSocket.OPEN) return;
+      // Safari freezes background pages; resumeMixer picks the queries up again when the page is shown.
+      if (!pageVisible()) return;
       if (index < missing.length) {
         const slider = missing[index++].slider;
         if (slider.dataset.ready !== "true") sendOSC("/Input_Channels/" + slider.dataset.channel + "/Aux_Send/" + aux + "/" + sendParameter() + "/?");
@@ -243,7 +249,10 @@ function requestValues({ preserveValues = false } = {}) {
       } else if (attempt < 2 && Array.from(channelElements.values()).some(({ slider }) => slider.dataset.ready !== "true")) {
         queryTimer = setTimeout(() => queryMissing(attempt + 1), 1000);
       } else if (Array.from(channelElements.values()).some(({ slider }) => slider.dataset.ready !== "true")) {
-        mixerStatus.textContent = "Some channels unavailable · change mix to retry";
+        // No answers at all means the socket is open in name only, which Safari leaves
+        // behind after freezing the page. Reconnect; onclose starts a new connection.
+        if (levelResponses === responsesBefore) ws.close();
+        else mixerStatus.textContent = "Some channels unavailable · change mix to retry";
       }
     }
     queryNext();
@@ -279,6 +288,7 @@ function onMessage(event) {
     const db = json.args[0];
     if (!controls || typeof db !== "number" || !Number.isFinite(db)) return;
     controls.slider.dataset.ready = "true";
+    levelResponses++;
     updateLevel(controls.slider, panMode ? db : dbToSlider(db), db);
     controls.slider.disabled = editingLayout || !ws || ws.readyState !== WebSocket.OPEN;
     updateMixStatus();
@@ -497,6 +507,30 @@ function startWebsocket() {
 }
 startWebsocket();
 document.addEventListener("device-nickname-changed", () => sendDeviceNickname(ws));
+
+function pageVisible() { return document.visibilityState !== "hidden"; }
+
+// Safari freezes timers and WebSocket delivery for a page that is opened or left in
+// the background, which left faders disabled until the user switched apps and back.
+// Whenever the page is shown or touched, reconnect a closed socket and fetch any
+// levels that have not arrived. If a socket that looks open does not answer, Safari
+// left it dead while frozen: close it so the normal reconnect runs.
+function resumeMixer() {
+  if (!pageVisible() || pinNeeded) return;
+  if (!ws || ws.readyState > WebSocket.OPEN) { startWebsocket(); return; }
+  if (ws.readyState !== WebSocket.OPEN || !mixerConfigReady || !auxSelect.value || editingLayout) return;
+  if (!Array.from(channelElements.values()).some(({ slider }) => slider.dataset.ready !== "true")) return;
+  const socket = ws, responsesBefore = levelResponses;
+  requestValues({ preserveValues: true });
+  clearTimeout(resumeCheck);
+  resumeCheck = setTimeout(() => {
+    if (ws === socket && socket.readyState === WebSocket.OPEN && levelResponses === responsesBefore && pageVisible()) socket.close();
+  }, 4000);
+}
+document.addEventListener("visibilitychange", resumeMixer);
+window.addEventListener("pageshow", resumeMixer);
+window.addEventListener("focus", resumeMixer);
+document.addEventListener("pointerdown", resumeMixer, { passive: true });
 
 const listViewButton = document.getElementById("listView");
 const gridViewButton = document.getElementById("gridView");

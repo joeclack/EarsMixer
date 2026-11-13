@@ -6,9 +6,11 @@
 
 Product version: **1.11.0**. Node package version: **2.13.0**.
 
-- Detect the desk type. While waiting for the desk, the server asks the desk address both the DiGiCo question and the Behringer X32 / Midas M32 question (`/xinfo` on port 10023) and records which one answers. DiGiCo desks load as before.
-- An X32 or M32 is reported by model, name and firmware in the log, the admin dashboard and the macOS panel. Its mixes cannot be controlled yet.
-- `npm run mock-desk -- --x32` pretends to be an X32 that identifies itself, for testing detection without a desk.
+- Add Behringer X32 and Midas M32 support. The server now has two modes, DiGiCo and Behringer, and picks one by itself: while waiting for the desk it asks the desk address both the DiGiCo question and the X32 question (`/xinfo` on port 10023) and uses the mode of whichever answers. DiGiCo desks load as before.
+- In Behringer mode, mix buses 1-16 are the AUX mixes, channels 1-32 are the channels and aux inputs 1-8 follow as channels 33-40. A linked bus pair is one stereo mix with pan; its second bus is listed in Desk settings but not offered to musicians. Scene changes reload the mix and show the scene name, as snapshots do on DiGiCo.
+- The phone app and browser mixer are unchanged. The server translates X32 messages and fader positions to the dB messages they already use. External devices and plugins also keep receiving the DiGiCo-style messages.
+- The dashboard shows the detected desk. The desk receive port setting applies to DiGiCo only; an X32 always uses 10023.
+- `npm run mock-desk -- --x32` pretends to be an X32, for testing without a desk.
 
 ## 1.10.4 — 2026-11-13
 

@@ -43,8 +43,7 @@ function ConnectPanel({ status, access, reload }) {
 
 function Attention({ status, access }) {
   const items = [];
-  if (status.desk && !status.desk.supported) items.push({ tone: "warn", title: status.desk.label + " detected", text: "This desk answered at the desk address, but EarsMixer cannot control X32 and M32 mixes yet.", href: "#desk-settings", link: "Desk settings" });
-  else if (!status.loaded) items.push({ tone: "warn", title: "Waiting for the desk", text: "EarsMixer has not loaded channels from the desk yet. Check the desk address.", href: "#desk-settings", link: "Desk settings" });
+  if (!status.loaded) items.push({ tone: "warn", title: "Waiting for the desk", text: "EarsMixer has not loaded channels from the desk yet. Check the desk address.", href: "#desk-settings", link: "Desk settings" });
   if (!status.adminPasswordEnabled) items.push({ tone: "warn", title: "No admin password", text: access?.enabled
     ? "Anyone on this network can open this dashboard and read the PIN."
     : "Anyone on this network can open this dashboard and change settings.", href: "#system", link: "Set password" });

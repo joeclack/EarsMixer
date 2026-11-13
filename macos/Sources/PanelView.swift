@@ -119,7 +119,6 @@ struct PanelView: View {
     private var deskText: String {
         guard let connected = model.deskConnected else { return "—" }
         let address = model.deskAddress.isEmpty ? "" : " (\(model.deskAddress))"
-        if !connected && !model.unsupportedDesk.isEmpty { return model.unsupportedDesk + " detected, not supported yet" }
         return (connected ? "Connected" : "Not answering") + address
     }
 

@@ -16,7 +16,7 @@
  *   node tools/mock-desk.js --channels 32 --auxes 8
  *   node tools/mock-desk.js --port 9000 --reply-port 8000 --host 127.0.0.1
  *   node tools/mock-desk.js --live          # also push periodic snapshot changes
- *   node tools/mock-desk.js --x32           # pretend to be a Behringer X32 on port 10023 (identification only)
+ *   node tools/mock-desk.js --x32           # pretend to be a Behringer X32 on port 10023
  *
  * Point webmixer at it by setting the desk IP to this machine (127.0.0.1 when both
  * run on the same box) in the admin area.
@@ -138,7 +138,7 @@ udpPort.on("ready", function()
 {
 	if(X32)
 	{
-		console.log(`Mock X32 listening on ${HOST}:${DESK_PORT}. It only identifies itself (/xinfo, /info).`);
+		console.log(`Mock X32 listening on ${HOST}:${DESK_PORT}: 32 channels, 8 aux inputs, 16 buses (3-4 linked).`);
 		return;
 	}
 	console.log(`Mock DiGiCo desk listening on ${HOST}:${DESK_PORT}`);
@@ -159,13 +159,7 @@ udpPort.on("message", function(oscMsg, timeTag, info)
 
 	const address = oscMsg.address;
 	console.log(`<- ${address} ${oscMsg.args && oscMsg.args.length ? JSON.stringify(oscMsg.args) : ""}`.trimEnd());
-	// An X32 answers on the port the question came from and identifies itself.
-	if(X32)
-	{
-		if(address === "/xinfo") return reply("/xinfo", ["127.0.0.1", "Mock X32", "X32", "4.06-8"]);
-		if(address === "/info") return reply("/info", ["V2.07", "osc-server", "X32", "4.06-8"]);
-		return;
-	}
+	if(X32) return handleX32(oscMsg);
 	if(address === dropQueryOnce) {
 		dropQueryOnce = null;
 		console.log('  (dropping one reply to simulate packet loss)');
@@ -236,6 +230,44 @@ udpPort.on("message", function(oscMsg, timeTag, info)
 	}
 });
 
+/**
+ * Behringer X32 emulation: 32 channels, 8 aux inputs and 16 buses, with buses
+ * 3-4 linked as a stereo pair. A query is an address with no arguments, the
+ * answer goes to the port the question came from, and levels are fader
+ * positions from 0 to 1.
+ */
+const x32 = {
+	values: new Map([["/config/buslink/3-4", 1], ["/-show/prepos/current", 0]]),
+	scenes: ["Soundcheck", "Service", "Walk Out"],
+	subscribed: false
+};
+function x32Default(address)
+{
+	let m;
+	if((m = address.match(/^\/ch\/(\d\d)\/config\/name$/))) return state.channelName(parseInt(m[1], 10));
+	if((m = address.match(/^\/auxin\/(\d\d)\/config\/name$/))) return parseInt(m[1], 10) === 8 ? "" : `Playback ${parseInt(m[1], 10)}`;
+	if((m = address.match(/^\/bus\/(\d\d)\/config\/name$/))) return state.auxName(parseInt(m[1], 10));
+	if((m = address.match(/^\/-show\/showfile\/scene\/(\d{3})\/name$/))) return x32.scenes[parseInt(m[1], 10)] ?? "";
+	if(/^\/config\/buslink\/\d+-\d+$/.test(address)) return 0;
+	if(/^\/(ch|auxin)\/\d\d\/mix\/\d\d\/level$/.test(address)) return 0.5;
+	if(/^\/(ch|auxin)\/\d\d\/mix\/\d\d\/pan$/.test(address)) return 0.5;
+	return undefined;
+}
+function handleX32(oscMsg)
+{
+	const address = oscMsg.address;
+	if(address === "/xinfo") return reply("/xinfo", ["127.0.0.1", "Mock X32", "X32", "4.06-8"]);
+	if(address === "/info") return reply("/info", ["V2.07", "osc-server", "X32", "4.06-8"]);
+	if(address === "/xremote") { x32.subscribed = true; return; }
+	if(oscMsg.args && oscMsg.args.length)
+	{
+		if(x32Default(address) !== undefined || x32.values.has(address)) x32.values.set(address, oscMsg.args[0]);
+		return;
+	}
+	const value = x32.values.has(address) ? x32.values.get(address) : x32Default(address);
+	if(value !== undefined) reply(address, [value]);
+}
+
 udpPort.open();
 
 /**
@@ -246,6 +278,14 @@ if(args.live)
 {
 	setInterval(function()
 	{
+		if(X32)
+		{
+			if(!x32.subscribed) return;
+			const scene = (x32.values.get("/-show/prepos/current") + 1) % x32.scenes.length;
+			x32.values.set("/-show/prepos/current", scene);
+			console.log(`\n[live] scene -> ${scene} "${x32.scenes[scene]}"`);
+			return reply("/-show/prepos/current", [scene]);
+		}
 		state.snapshotIndex = (state.snapshotIndex + 1) % state.snapshotNames.length;
 		console.log(`\n[live] snapshot -> ${state.snapshotIndex} "${state.snapshotNames[state.snapshotIndex]}"`);
 		reply("/Snapshots/Current_Snapshot", [state.snapshotIndex]);

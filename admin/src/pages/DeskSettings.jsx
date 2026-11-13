@@ -163,15 +163,14 @@ export function DeskSettings({ status, reload }) {
       {section === "connection" ? <Panel title="Connection">
         <div className="field-row">
           <Field label="Desk IP address" className="grow" value={form.deskIp} required inputMode="decimal" onInput={event => set({ deskIp: event.currentTarget.value })}
-            hint="DiGiCo: Setup › External Control › DiGiCo iPad. The desk type is detected automatically." />
-          <Field label="Desk receive port" className="port" value={form.deskPort} inputMode="numeric" onInput={event => set({ deskPort: event.currentTarget.value })} />
+            hint="DiGiCo or Behringer X32 / Midas M32. The desk type is detected automatically. DiGiCo: Setup › External Control › DiGiCo iPad." />
+          <Field label="Desk receive port" className="port" value={form.deskPort} inputMode="numeric" onInput={event => set({ deskPort: event.currentTarget.value })} hint="DiGiCo only. An X32 always uses 10023." />
           <Field label="OSC receive port" className="port" value={form.oscPort} inputMode="numeric" onInput={event => set({ oscPort: event.currentTarget.value })} hint="The desk sends to this port." />
           <Field label="Web port" className="port" value={form.serverPort} inputMode="numeric" onInput={event => set({ serverPort: event.currentTarget.value })} />
         </div>
         <div className="desk-state">
           <span className={"dot dot-" + (status.loaded ? "ok" : "warn")}></span>
-          <span className="grow">{status.desk && !status.desk.supported ? status.desk.label + (status.desk.name ? " “" + status.desk.name + "”" : "") + " detected at " + (form.deskIp || "the address above") + ". X32 and M32 mixes cannot be controlled yet."
-            : status.loaded ? (status.desk?.label || "Desk") + " is answering. " + form.channels.length + " channels and " + form.aux.length + " AUX outputs loaded." : "Waiting for the desk to answer at " + (form.deskIp || "the address above") + "."}</span>
+          <span className="grow">{status.loaded ? (status.desk?.label || "Desk") + " is answering. " + form.channels.length + " channels and " + form.aux.length + " AUX outputs loaded." : "Waiting for the desk to answer at " + (form.deskIp || "the address above") + "."}</span>
           <span className="muted small mono">This server: {form.serverIp}</span>
         </div>
         <label className="check"><Check checked={form.debug} label="Log debug messages" onChange={debug => set({ debug })} /><span>Log debug messages</span></label>

@@ -55,7 +55,7 @@ export function System({ status, reload }) {
       <dl className="facts">
         <dt>Version</dt><dd className="mono">{status.version}</dd>
         <dt>Mixer link</dt><dd className="mono wrap">{status.url}</dd>
-        <dt>Desk</dt><dd>{status.loaded ? (status.desk?.label || "Connected") : status.desk && !status.desk.supported ? status.desk.label + " detected, not supported yet" : "Waiting for desk"}</dd>
+        <dt>Desk</dt><dd>{status.loaded ? (status.desk?.label || "Connected") : "Waiting for desk"}</dd>
         <dt>Snapshot</dt><dd>{status.snapshot || "—"}</dd>
         <dt>Shown</dt><dd>{status.aux.length} AUX mixes, {status.channels.length} channels</dd>
       </dl>

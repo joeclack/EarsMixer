@@ -61,7 +61,7 @@ function App() {
     </nav>
     <div className="content">
       <div className="status-strip" role="status" aria-label="System status">
-        <StatusCell label="Desk" value={!data ? "…" : data.loaded ? (data.desk?.label || "Connected") : data.desk && !data.desk.supported ? data.desk.label + " (not supported yet)" : "Waiting for desk"} tone={!data ? null : data.loaded ? "ok" : "warn"} />
+        <StatusCell label="Desk" value={!data ? "…" : data.loaded ? (data.desk?.label || "Connected") : "Waiting for desk"} tone={!data ? null : data.loaded ? "ok" : "warn"} />
         <StatusCell label="Snapshot" value={data?.snapshot || "—"} />
         <StatusCell label="Devices" value={data ? data.connections + " connected" : "…"} />
         <StatusCell label="Access" value={!access.data ? "…" : access.data.enabled ? "PIN required" : "Open"} tone={access.data?.enabled ? "accent" : null} />

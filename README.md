@@ -1,6 +1,6 @@
 # EarsMixer
 
-A local server connecting DiGiCo SD Series and Quantum consoles to the [EarsMixer mobile app](https://github.com/joeclack/EarsMixerApp) and a browser mixer. Musicians control their AUX send levels and pan; administrators manage the console connection, channels and shared layouts.
+A local server connecting DiGiCo SD Series and Quantum consoles, and Behringer X32 / Midas M32 consoles, to the [EarsMixer mobile app](https://github.com/joeclack/EarsMixerApp) and a browser mixer. Musicians control their AUX send levels and pan; administrators manage the console connection, channels and shared layouts.
 
 ## Components
 
@@ -28,6 +28,8 @@ A local server connecting DiGiCo SD Series and Quantum consoles to the [EarsMixe
 4. Connect musicians through the mobile app or the mixer URL/QR code.
 
 The server, console and musician devices need network access to one another. Configure the console's **DiGiCo iPad** external control, with matching OSC ports: server receive **8000/UDP**, console receive **9000/UDP** by default. S-Series consoles are not supported.
+
+For a Behringer X32 or Midas M32, enter the console's IP address as the desk address. Nothing needs setting on the console: the server detects it and uses port **10023/UDP**. Mix buses 1-16 are the AUX mixes; channels 1-32 and aux inputs 1-8 are the channels.
 
 The installed web server defaults to port **80**, with administration at `/admin`. Windows settings and data live in `%PROGRAMDATA%\EarsMixer`. Run a newer installer to update an existing installation.
 

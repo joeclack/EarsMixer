@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 1.11.0 — 2026-11-13
+
+Product version: **1.11.0**. Node package version: **2.13.0**.
+
+- Detect the desk type. While waiting for the desk, the server asks the desk address both the DiGiCo question and the Behringer X32 / Midas M32 question (`/xinfo` on port 10023) and records which one answers. DiGiCo desks load as before.
+- An X32 or M32 is reported by model, name and firmware in the log, the admin dashboard and the macOS panel. Its mixes cannot be controlled yet.
+- `npm run mock-desk -- --x32` pretends to be an X32 that identifies itself, for testing detection without a desk.
+
 ## 1.10.4 — 2026-11-13
 
 Product version: **1.10.4**. Node package version: **2.12.4**.

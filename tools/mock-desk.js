@@ -16,6 +16,7 @@
  *   node tools/mock-desk.js --channels 32 --auxes 8
  *   node tools/mock-desk.js --port 9000 --reply-port 8000 --host 127.0.0.1
  *   node tools/mock-desk.js --live          # also push periodic snapshot changes
+ *   node tools/mock-desk.js --x32           # pretend to be a Behringer X32 on port 10023 (identification only)
  *
  * Point webmixer at it by setting the desk IP to this machine (127.0.0.1 when both
  * run on the same box) in the admin area.
@@ -73,7 +74,8 @@ if(fs.existsSync(configPath))
 	}
 }
 
-const DESK_PORT = parseInt(args.port ?? fileConfig?.desk?.port ?? 9000, 10);
+const X32 = Boolean(args.x32);
+const DESK_PORT = parseInt(args.port ?? (X32 ? 10023 : fileConfig?.desk?.port ?? 9000), 10);
 const REPLY_PORT = parseInt(args["reply-port"] ?? fileConfig?.osc?.port ?? 8000, 10);
 const HOST = args.host ?? "0.0.0.0";
 const CHANNEL_COUNT = parseInt(args.channels ?? 24, 10);
@@ -134,6 +136,11 @@ function reply(address, oscArgs)
 
 udpPort.on("ready", function()
 {
+	if(X32)
+	{
+		console.log(`Mock X32 listening on ${HOST}:${DESK_PORT}. It only identifies itself (/xinfo, /info).`);
+		return;
+	}
 	console.log(`Mock DiGiCo desk listening on ${HOST}:${DESK_PORT}`);
 	console.log(`Replies go to the webmixer OSC port ${REPLY_PORT} (learned from incoming packets).`);
 	console.log(`${state.channelCount} channels, ${state.auxModes.length} auxes ` +
@@ -152,6 +159,13 @@ udpPort.on("message", function(oscMsg, timeTag, info)
 
 	const address = oscMsg.address;
 	console.log(`<- ${address} ${oscMsg.args && oscMsg.args.length ? JSON.stringify(oscMsg.args) : ""}`.trimEnd());
+	// An X32 answers on the port the question came from and identifies itself.
+	if(X32)
+	{
+		if(address === "/xinfo") return reply("/xinfo", ["127.0.0.1", "Mock X32", "X32", "4.06-8"]);
+		if(address === "/info") return reply("/info", ["V2.07", "osc-server", "X32", "4.06-8"]);
+		return;
+	}
 	if(address === dropQueryOnce) {
 		dropQueryOnce = null;
 		console.log('  (dropping one reply to simulate packet loss)');

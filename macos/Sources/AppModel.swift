@@ -13,6 +13,8 @@ final class AppModel: ObservableObject {
     /// nil until the server has answered.
     @Published private(set) var deskConnected: Bool?
     @Published private(set) var deskAddress = ""
+    /// Set when a desk answered that cannot be controlled yet (an X32 or M32).
+    @Published private(set) var unsupportedDesk = ""
     @Published private(set) var devices = 0
     @Published private(set) var qr: NSImage?
     @Published private(set) var link: String?
@@ -51,6 +53,7 @@ final class AppModel: ObservableObject {
     private func clearStatus() {
         deskConnected = nil
         deskAddress = ""
+        unsupportedDesk = ""
         devices = 0
         qr = nil
         link = nil
@@ -76,6 +79,7 @@ final class AppModel: ObservableObject {
             let desk = json["desk"] as? [String: Any]
             deskConnected = desk?["connected"] as? Bool ?? false
             deskAddress = desk?["address"] as? String ?? ""
+            unsupportedDesk = (desk?["type"] as? String) == "x32" ? (desk?["label"] as? String ?? "") : ""
             devices = json["devices"] as? Int ?? 0
         } else if server.isRunning {
             deskConnected = nil

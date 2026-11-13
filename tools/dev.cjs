@@ -62,7 +62,7 @@ const startupTimeout = setTimeout(() => {
 }, 10000);
 
 const mixerUrl = savedConfig.server?.publicUrl || url;
-console.log(`Demo mixer: ${mixerUrl}\nAdmin: ${url}/admin\n20 channels / 8 AUXes. Ctrl+C stops both processes.`);
+console.log(`Demo mixer: ${mixerUrl}\nAdmin: ${url}/admin\n20 channels / 8 AUXes, simulated signal meters. Ctrl+C stops both processes.`);
 const mock = launch("tools/mock-desk.js", [
   "--host", "127.0.0.1", "--port", String(deskPort), "--reply-port", String(oscPort),
   "--channels", "20", "--auxes", "8",
@@ -83,7 +83,9 @@ mock.stdout.on("data", chunk => {
         OSC_WEBMIXER_CONFIG_DIR: configDirectory,
         OSC_WEBMIXER_DATA_DIR: process.env.OSC_WEBMIXER_DATA_DIR || path.join(configDirectory, "data"),
         OSC_WEBMIXER_BIND_ADDRESS: bindAddress,
-        OSC_WEBMIXER_PUBLIC_URL: url
+        OSC_WEBMIXER_PUBLIC_URL: url,
+        // The demo streams clearly simulated signal meters to clients.
+        OSC_WEBMIXER_DEMO_METERS: process.env.OSC_WEBMIXER_DEMO_METERS ?? '1'
       }
     });
   }

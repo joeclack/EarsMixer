@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 1.11.0 — 2026-11-13
+
+Product version: **1.11.0**. Node package version: **2.13.0**.
+
+- Add a signal meter stream for the mobile app. Clients send `{ "meters": true }` to subscribe and receive `{ "meters": { "kind", "levels": [[channel, dB or null], …] } }` about 15 times a second for their visible channels. The config message's new `meters` field says whether meters exist (`"simulated"` or `null`). The stream runs only while a client is subscribed and skips clients that fall behind.
+- The demo (`npm run dev`) streams simulated signals: kick and snare on a 120 bpm grid, drifting sustained sources, vocals that rest, and an occasional clip. They are always marked simulated. Set `OSC_WEBMIXER_DEMO_METERS=0` to turn them off.
+- Real DiGiCo meters are not requested yet. The console's input-meter addresses must first be confirmed from a real desk, so on a desk `meters` is `null` and the app hides its meters.
+
 ## 1.10.4 — 2026-11-13
 
 Product version: **1.10.4**. Node package version: **2.12.4**.

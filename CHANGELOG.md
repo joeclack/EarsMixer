@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.10.4 — 2026-11-13
+
+Product version: **1.10.4**. Node package version: **2.12.4**.
+
+- Fix phones running an old version of the browser mixer after the server was updated. The mixer's page, scripts and styles were requested under the same address in every release, so Safari kept using its saved copies and never loaded fixes. The server now tells browsers to check for a newer copy on every load; an unchanged file is not downloaded again.
+
 ## 1.10.3 — 2026-11-13
 
 Product version: **1.10.3**. Node package version: **2.12.3**.

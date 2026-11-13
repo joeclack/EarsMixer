@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 1.10.0 — 2026-11-13
+
+Product version: **1.10.0**. Node package version: **2.12.0**.
+
+- Replace the macOS menu with a panel. It shows the server switch, whether the desk is answering, the number of connected devices and the mixer QR code and link, with buttons for the admin dashboard and mixer. Restart, logs, the settings folder, Open at Login, update checks and Quit are under the gear button.
+- Add `/api/local/status` for the menu bar app. It reports the desk connection and device count, and answers only programs on the same computer.
+
 ## 1.9.0 — 2026-11-13
 
 Product version: **1.9.0**. Node package version: **2.11.0**.

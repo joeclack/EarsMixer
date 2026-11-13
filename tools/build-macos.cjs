@@ -75,8 +75,9 @@ function main() {
     // Keep downloaded packaging runtimes with the ignored build outputs.
     process.env.PKG_CACHE_PATH ||= path.join(root, "dist", "pkg-cache");
     const esbuild = require.resolve("esbuild/bin/esbuild");
-    run(process.execPath, [esbuild, "web/mixer.js", "--minify", "--outfile=web/mixer.min.js"]);
-    run(process.execPath, [esbuild, "web/mixer.css", "--minify", "--outfile=web/mixer.min.css"]);
+    // On macOS this is the native esbuild binary, not a Node script.
+    run(esbuild, ["web/mixer.js", "--minify", "--outfile=web/mixer.min.js"]);
+    run(esbuild, ["web/mixer.css", "--minify", "--outfile=web/mixer.min.css"]);
 
     // One server binary per architecture; the app starts the one that matches.
     const pkg = require.resolve("@yao-pkg/pkg/lib-es5/bin.js");

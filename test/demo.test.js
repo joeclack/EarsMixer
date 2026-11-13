@@ -96,6 +96,10 @@ test("offline v2: discovery, scoped clients, dashboard, templates, admin session
     assert.equal((await (await fetch(base + "/config")).json()).desk.ip, "127.0.0.1");
     const first = await connect(publicBase.replace("http:", "ws:")); clients.push(first);
     const second = await connect(base.replace("http:", "ws:")); clients.push(second);
+    const localStatus = await fetch(base + "/api/local/status");
+    assert.deepEqual(await localStatus.json(), { desk: { connected: true, address: "127.0.0.1" }, devices: 2 });
+    assert.equal((await fetch(base + "/api/local/status", { headers: browserHeaders })).status, 404);
+    assert.equal((await fetch(publicBase + "/api/local/status")).status, 404);
     assert.equal(first.config.channels.length, 20);
     assert.equal(first.config.aux.length, 8);
     assert(first.config.aux.some(aux => aux.stereo));

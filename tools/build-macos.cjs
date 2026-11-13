@@ -87,11 +87,14 @@ function main() {
     }
 
     // Universal menu bar app.
+    const sourceDirectory = path.join(root, "macos", "Sources");
+    const sources = fs.readdirSync(sourceDirectory).filter(name => name.endsWith(".swift")).sort()
+        .map(name => path.join(sourceDirectory, name));
     const slices = [];
     for (const arch of ["arm64", "x86_64"]) {
         const slice = path.join(out, `EarsMixer-${arch}`);
-        run("xcrun", ["swiftc", "-O", "-target", `${arch}-apple-macos13.0`,
-            "macos/EarsMixer.swift", "-o", slice]);
+        run("xcrun", ["swiftc", "-O", "-parse-as-library", "-target", `${arch}-apple-macos13.0`,
+            ...sources, "-o", slice]);
         slices.push(slice);
     }
     run("lipo", ["-create", ...slices, "-output", path.join(macos, "EarsMixer")]);

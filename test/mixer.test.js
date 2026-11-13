@@ -18,7 +18,8 @@ class Control {
     this.attributes = {};
     this.listeners = new Map();
     this.style = { setProperty() {} };
-    this.classList = { contains: () => false, toggle() {} };
+    const classes = new Set();
+    this.classList = { contains: name => classes.has(name), toggle(name, force = !classes.has(name)) { if (force) classes.add(name); else classes.delete(name); return force; } };
     this.value = "";
     this.checked = false;
     this.disabled = false;
@@ -527,4 +528,32 @@ test("showing the page reconnects a closed socket straight away", () => {
   mixer.run('document.dispatchEvent({ type: "visibilitychange" })');
   assert.notEqual(mixer.socket(), old);
   assert.equal(mixer.socket().readyState, 1);
+});
+
+test("Safari: the drag handle carries the disabled state itself, through an AUX switch", () => {
+  const mixer = createMixer();
+  const thumb = id => mixer.run('channelElements.get("' + id + '").thumb');
+  mixer.tick(30);
+  mixer.level(2, 2, -20); mixer.level(65, 2, 0);
+  assert.equal(thumb(65).classList.contains("is-disabled"), false);
+  mixer.run('auxSelect.value = "4"; auxSelect.dispatchEvent({ type: "change" })');
+  // Waiting for the new mix: the handle itself is marked, not just the hidden input.
+  assert.equal(mixer.slider(65).disabled, true);
+  assert.equal(thumb(65).classList.contains("is-disabled"), true);
+  mixer.tick(30);
+  mixer.level(2, 4, -10); mixer.level(65, 4, -5);
+  assert.equal(mixer.slider(65).disabled, false);
+  assert.equal(thumb(65).classList.contains("is-disabled"), false);
+  assert.equal(thumb(2).classList.contains("is-disabled"), false);
+  assert.equal(mixer.controls.get("mixerStatus").textContent, "Connected");
+});
+
+test("showing the page asks only for missing levels and keeps loaded faders usable", () => {
+  const mixer = createMixer();
+  mixer.tick(30);
+  mixer.level(2, 2, -20);
+  mixer.socket().sent.length = 0;
+  mixer.run('document.dispatchEvent({ type: "visibilitychange" })');
+  assert.equal(mixer.slider(2).disabled, false);
+  assert.deepEqual(mixer.socket().sent.map(message => message.address), ["/Input_Channels/65/Aux_Send/2/send_level/?"]);
 });

@@ -164,6 +164,15 @@ function sliderChange() {
   pending.timer = setTimeout(() => flushSlider(this), WRITE_INTERVAL_MS);
 }
 
+// Safari does not always restyle a sibling when an input's disabled state changes, so
+// a `.fader:disabled + .fader-thumb` rule left the drag handle greyed out and
+// untouchable after its fader was enabled, until the page was fully restyled (for
+// example by switching apps). Mark the handle itself instead.
+function setFaderDisabled(controls, disabled) {
+  controls.slider.disabled = disabled;
+  controls.thumb.classList.toggle("is-disabled", disabled);
+}
+
 function bindFaderHandle(slider, thumb) {
   let drag = null;
   function cancelDrag() {
@@ -290,7 +299,7 @@ function onMessage(event) {
     controls.slider.dataset.ready = "true";
     levelResponses++;
     updateLevel(controls.slider, panMode ? db : dbToSlider(db), db);
-    controls.slider.disabled = editingLayout || !ws || ws.readyState !== WebSocket.OPEN;
+    setFaderDisabled(controls, editingLayout || !ws || ws.readyState !== WebSocket.OPEN);
     updateMixStatus();
     return;
   }
@@ -426,7 +435,7 @@ function updateLayoutInputs() {
   const connected = ws && ws.readyState === WebSocket.OPEN;
   editLayoutButton.disabled = !channelsDiv.children.length;
   panModeButton.disabled = editingLayout || !channelsDiv.children.length;
-  for (const { slider } of channelElements.values()) slider.disabled = editingLayout || !connected || slider.dataset.ready !== "true";
+  for (const controls of channelElements.values()) setFaderDisabled(controls, editingLayout || !connected || controls.slider.dataset.ready !== "true");
 }
 
 auxSelect.addEventListener("change", () => {
@@ -510,18 +519,21 @@ document.addEventListener("device-nickname-changed", () => sendDeviceNickname(ws
 
 function pageVisible() { return document.visibilityState !== "hidden"; }
 
-// Safari freezes timers and WebSocket delivery for a page that is opened or left in
-// the background, which left faders disabled until the user switched apps and back.
-// Whenever the page is shown or touched, reconnect a closed socket and fetch any
-// levels that have not arrived. If a socket that looks open does not answer, Safari
-// left it dead while frozen: close it so the normal reconnect runs.
+// Safari can drop or freeze the connection while the page is in the background.
+// When the page is shown again, reconnect a closed socket and fetch any levels that
+// have not arrived. If a socket that looks open does not answer, close it so the
+// normal reconnect runs.
 function resumeMixer() {
   if (!pageVisible() || pinNeeded) return;
   if (!ws || ws.readyState > WebSocket.OPEN) { startWebsocket(); return; }
   if (ws.readyState !== WebSocket.OPEN || !mixerConfigReady || !auxSelect.value || editingLayout) return;
   if (!Array.from(channelElements.values()).some(({ slider }) => slider.dataset.ready !== "true")) return;
   const socket = ws, responsesBefore = levelResponses;
-  requestValues({ preserveValues: true });
+  // Ask only for the levels still missing; faders that have loaded stay usable.
+  const aux = auxSelect.value;
+  for (const { slider } of channelElements.values()) {
+    if (slider.dataset.ready !== "true") sendOSC("/Input_Channels/" + slider.dataset.channel + "/Aux_Send/" + aux + "/" + sendParameter() + "/?");
+  }
   clearTimeout(resumeCheck);
   resumeCheck = setTimeout(() => {
     if (ws === socket && socket.readyState === WebSocket.OPEN && levelResponses === responsesBefore && pageVisible()) socket.close();
@@ -529,8 +541,6 @@ function resumeMixer() {
 }
 document.addEventListener("visibilitychange", resumeMixer);
 window.addEventListener("pageshow", resumeMixer);
-window.addEventListener("focus", resumeMixer);
-document.addEventListener("pointerdown", resumeMixer, { passive: true });
 
 const listViewButton = document.getElementById("listView");
 const gridViewButton = document.getElementById("gridView");

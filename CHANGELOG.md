@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 1.12.0 — 2026-11-13
+
+Product version: **1.12.0**. Node package version: **2.14.0**.
+
+- Musicians can mute a channel in their own mix. The app turns the desk's send on or off (`/Input_Channels/<n>/Aux_Send/<aux>/send_on`, 1 or 0), so the level is kept and the engineer sees the mute on the desk. The server loads each send's state after its level, relays changes to everyone on that AUX, and logs mutes on the Clients page. The mock desk supports it too.
+- Musicians can send the engineer a request: More me, Less me, More click, Talk to me or Problem, with an optional short message (up to 140 characters). Requests appear at the top of every admin page, with a count in the tab title, until the engineer taps Got it; the musician's app then shows it was seen. Requests are limited to one every 1.5 seconds and eight a minute per device.
+
 ## 1.11.0 — 2026-11-13
 
 Product version: **1.11.0**. Node package version: **2.13.0**.

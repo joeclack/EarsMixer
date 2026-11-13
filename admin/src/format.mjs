@@ -47,7 +47,7 @@ export function coalesceLog(entries) {
   for (const entry of entries) {
     const previous = result[result.length - 1];
     if (previous && previous.client === entry.client && previous.type === entry.type && previous.aux === entry.aux &&
-      (entry.type === "aux" || previous.channel === entry.channel)) {
+      entry.type !== "request" && (entry.type === "aux" || previous.channel === entry.channel)) {
       previous.at = entry.at; previous.to = entry.value;
       continue;
     }
@@ -57,7 +57,9 @@ export function coalesceLog(entries) {
 }
 export function changeText(entry) {
   if (entry.type === "aux") return "Opened " + (entry.auxLabel || "AUX " + entry.aux);
+  if (entry.type === "request") return "Asked: " + entry.label + (entry.text ? " — " + entry.text : "");
   const name = entry.channelLabel || "Channel " + entry.channel;
+  if (entry.type === "mute") return name + (entry.to ? " unmuted" : " muted");
   const show = entry.type === "level" ? levelText : value => panText(value) || "C";
   const changed = entry.from !== null && Math.abs(entry.from - entry.to) > 0.005;
   return name + (entry.type === "pan" ? " pan " : " ") + (changed ? show(entry.from) + " → " + show(entry.to) : show(entry.to));

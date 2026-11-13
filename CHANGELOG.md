@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 1.10.3 — 2026-11-13
+
+Product version: **1.10.3**. Node package version: **2.12.3**.
+
+- Fix browser mixer faders looking disabled and ignoring touches in Safari after the mix loaded or after switching AUX, even though the status said Connected. Safari did not restyle a fader's drag handle when the fader became enabled, so it stayed greyed out until the page was redrawn (for example by switching apps). The handle now carries the disabled state itself.
+- The recheck added in 1.10.2 now runs only when the page is shown again, not on every tap or focus, and asks only for the levels still missing, so it can no longer disable faders that have already loaded.
+
 ## 1.10.2 — 2026-11-13
 
 Product version: **1.10.2**. Node package version: **2.12.2**.

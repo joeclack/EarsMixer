@@ -112,10 +112,56 @@ jobs:
           compression-level: 0
           retention-days: 30
 
+  macos-app:
+    name: macOS app
+    runs-on: macos-15
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Use HTTPS for the public OSC dependency
+        run: |
+          git config --global --add 'url.https://github.com/.insteadOf' 'ssh://git@github.com/'
+          git config --global --add 'url.https://github.com/.insteadOf' 'git@github.com:'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build macOS app
+        run: npm run installer:macos
+
+      - name: Check the server starts
+        run: |
+          home=$(mktemp -d)
+          OSC_WEBMIXER_HOME="$home" OSC_WEBMIXER_WEB_PORT=8765 dist/macos/EarsMixer.app/Contents/Resources/server/earsmixer-arm64 > "$home/out.log" 2>&1 &
+          pid=$!
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8765/api/connection > /dev/null; then kill $pid; echo "Server answered"; exit 0; fi
+            sleep 1
+          done
+          cat "$home/out.log"; kill $pid || true; exit 1
+
+      - name: Upload macOS app
+        uses: actions/upload-artifact@v4
+        with:
+          name: EarsMixer-macos-app
+          path: dist/*-macos.dmg
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
   release:
     name: Publish Windows release
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: [build, windows-installer]
+    needs: [build, windows-installer, macos-app]
     runs-on: windows-2025
     permissions:
       contents: write
@@ -131,6 +177,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: EarsMixer-windows-installer
+          path: dist
+
+      - name: Download macOS app
+        uses: actions/download-artifact@v4
+        with:
+          name: EarsMixer-macos-app
           path: dist
 
       - name: Publish versioned release

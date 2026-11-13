@@ -8,6 +8,7 @@ A local server connecting DiGiCo SD Series and Quantum consoles to the [EarsMixe
 - Browser mixer and admin dashboard.
 - Bonjour/mDNS server discovery and connection QR codes.
 - Windows service, tray manager and installer.
+- macOS menu bar app.
 
 ## Repository layout
 
@@ -15,6 +16,7 @@ A local server connecting DiGiCo SD Series and Quantum consoles to the [EarsMixe
 - `web/` — browser mixer and admin dashboard.
 - `config/`, `plugins/` — configuration and optional plugins.
 - `installer/` — Windows service/tray support and Inno Setup files.
+- `macos/` — macOS menu bar app.
 - `tools/` — demo console, development and packaging scripts.
 - `test/`, `.github/workflows/` — checks and release automation.
 
@@ -28,6 +30,17 @@ A local server connecting DiGiCo SD Series and Quantum consoles to the [EarsMixe
 The server, console and musician devices need network access to one another. Configure the console's **DiGiCo iPad** external control, with matching OSC ports: server receive **8000/UDP**, console receive **9000/UDP** by default. S-Series consoles are not supported.
 
 The installed web server defaults to port **80**, with administration at `/admin`. Windows settings and data live in `%PROGRAMDATA%\EarsMixer`. Run a newer installer to update an existing installation.
+
+## macOS deployment
+
+Requires macOS 13 or later, on Apple silicon or Intel.
+
+1. Download `EarsMixer-<version>-macos.dmg` from [Releases](https://github.com/joeclack/EarsMixer/releases/latest), open it and drag EarsMixer to Applications.
+2. The app is not notarised. On first launch, open it, then go to **System Settings → Privacy & Security** and click **Open Anyway**.
+3. Allow incoming connections and local network access when macOS asks.
+4. EarsMixer runs from the menu bar. Use it to open the admin dashboard, show the QR code, start or stop the server and turn on **Open at Login**.
+
+The server runs while the app is open; quitting the app stops it. Settings, data and logs live in `~/Library/Application Support/EarsMixer`. To update, quit EarsMixer and replace it in Applications with the newer version.
 
 ## Run from source
 
@@ -46,6 +59,7 @@ For a console-connected source deployment, configure the server and run `npm sta
 
 - `npm run build` regenerates the browser assets.
 - `npm run installer:windows` builds the Windows installer into `dist/`; requires Inno Setup 6.7+ and the Windows .NET Framework C# compiler.
+- `npm run installer:macos` builds the macOS dmg into `dist/`; run it on a Mac with the Xcode command line tools.
 - GitHub Actions builds release installers from `main`; feature branches remain unpublished until merged. Product metadata and the release tag version come from [installer/version.inc.iss](installer/version.inc.iss).
 - Windows/product version: **1.8.0**. Node package version: **2.10.0**, maintained in its separate upstream series.
 

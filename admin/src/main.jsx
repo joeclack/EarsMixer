@@ -9,6 +9,7 @@ import { Clients } from "./pages/Clients.jsx";
 import { Templates } from "./pages/Templates.jsx";
 import { DeskSettings } from "./pages/DeskSettings.jsx";
 import { System } from "./pages/System.jsx";
+import { Requests } from "./Requests.jsx";
 
 const pages = {
   overview: { title: "Overview", text: "Desk, access and who is on each mix.", icon: "overview" },
@@ -73,6 +74,7 @@ function App() {
           <p className="muted">{pages[page].text}</p>
         </header>
         {status.error && data ? <p className="banner" role="alert">Connection to the server lost. Reconnecting…</p> : null}
+        {data ? <Requests requests={data.requests} reload={status.reload} /> : null}
         {!data ? <p className="empty">{status.error || "Loading…"}</p>
           : page === "overview" ? <Overview status={data} access={access.data} reload={status.reload} />
           : page === "live-mix" ? <LiveMix status={data} selectedAux={selectedAux} onSelect={selectAux} reload={status.reload} />

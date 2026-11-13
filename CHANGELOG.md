@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a macOS version: a menu bar app that runs the server, with the mixer QR code, admin and mixer links, start, stop and restart, logs, settings folder, Open at Login and update notices. Releases include `EarsMixer-<version>-macos.dmg` for Apple silicon and Intel.
+
 ## 1.8.0 — 2026-11-12
 
 Windows product version: **1.8.0**. Node package version: **2.10.0**.

@@ -21,6 +21,8 @@ $tag = "v$version"
 $installers = @(Get-ChildItem -LiteralPath $ArtifactDirectory -Filter '*.exe' -File)
 if ($installers.Count -ne 1) { throw 'Expected exactly one Windows installer in the downloaded artifact.' }
 $installer = $installers[0]
+$macApps = @(Get-ChildItem -LiteralPath $ArtifactDirectory -Filter '*-macos.dmg' -File)
+if ($macApps.Count -gt 1) { throw 'Expected at most one macOS dmg in the downloaded artifacts.' }
 
 $existingJson = & gh release view $tag --repo $Repository --json isDraft,assets 2>$null
 if ($LASTEXITCODE -eq 0) {
@@ -33,9 +35,10 @@ else {
     $release = [pscustomobject]@{ isDraft = $true; assets = @() }
 }
 
-# Each successful main build refreshes the installer for the current version.
+# Each successful main build refreshes the installers for the current version.
 # Reuse the existing release/tag; --target applies only when creating a new tag.
-Invoke-Gh @('release', 'upload', $tag, $installer.FullName, '--repo', $Repository, '--clobber')
+$uploads = @($installer.FullName) + @($macApps | ForEach-Object { $_.FullName })
+Invoke-Gh (@('release', 'upload', $tag) + $uploads + @('--repo', $Repository, '--clobber'))
 
 if ($release.isDraft) {
     Invoke-Gh @('release', 'edit', $tag, '--repo', $Repository, '--draft=false', '--latest')

@@ -30,8 +30,6 @@ struct PanelView: View {
         }
         .padding(14)
         .frame(width: 300)
-        .onAppear { model.setPanelVisible(true) }
-        .onDisappear { model.setPanelVisible(false) }
     }
 
     private var header: some View {

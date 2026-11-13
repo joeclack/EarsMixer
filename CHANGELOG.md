@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.10.1 — 2026-11-13
+
+Product version: **1.10.1**. Node package version: **2.12.1**.
+
+- Fix the macOS panel leaving an empty area above it when the server is off. The panel now resizes to fit its contents.
+
 ## 1.10.0 — 2026-11-13
 
 Product version: **1.10.0**. Node package version: **2.12.0**.

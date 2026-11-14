@@ -28,7 +28,6 @@ button, input, select { font: inherit; color: inherit; }
 .nav-item { display: flex; align-items: center; gap: 10px; min-height: 44px; margin: 0 6px; padding: 0 12px; border-radius: 4px; color: var(--muted); text-decoration: none; font-weight: 400; }
 .nav-item:hover { color: var(--text); background: #16191d; }
 .nav-item.active { color: var(--text); background: var(--raised); font-weight: 600; }
-.version { margin-top: auto; padding: 12px 18px 4px; color: var(--muted); font-size: 12px; }
 .content { flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; }
 /* Match the sidebar header height so their bottom borders line up. */
 .status-strip { display: flex; flex-wrap: wrap; min-height: 56px; background: var(--panel); border-bottom: 1px solid var(--line); }
@@ -152,10 +151,9 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent);
    of status, and every card the full width. */
 @media (max-width: 860px) {
   .shell { flex-direction: column; flex-wrap: nowrap; }
-  .sidebar { align-self: stretch; height: auto; overflow: hidden; flex: 0 0 auto; display: grid; grid-template-columns: 1fr auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 0; }
+  .sidebar { align-self: stretch; height: auto; overflow: hidden; flex: 0 0 auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 0; }
   .brand { min-height: 48px; padding: 0 16px; border-bottom: 0; }
-  .version { display: flex; align-items: center; margin: 0; padding: 0 16px; }
-  .nav-groups { grid-column: 1 / -1; display: flex; gap: 2px; padding: 0 8px 8px; overflow-x: auto; scrollbar-width: none; }
+  .nav-groups { display: flex; gap: 2px; padding: 0 8px 8px; overflow-x: auto; scrollbar-width: none; }
   .nav-groups::-webkit-scrollbar, .status-strip::-webkit-scrollbar { display: none; }
   .nav-group { display: contents; }
   .nav-title { display: none; }

@@ -58,7 +58,6 @@ function App() {
           </a>)}
         </div>)}
       </div>
-      <div className="version mono">{data ? "v" + data.version : ""}</div>
     </nav>
     <div className="content">
       <div className="status-strip" role="status" aria-label="System status">

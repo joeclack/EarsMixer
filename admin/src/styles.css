@@ -20,7 +20,8 @@ button, input, select { font: inherit; color: inherit; }
 .eyebrow { font-size: 11px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--muted); }
 
 .shell { display: flex; flex-wrap: wrap; min-height: 100vh; }
-.sidebar { flex: 0 0 208px; display: flex; flex-direction: column; background: var(--panel); border-right: 1px solid var(--line); padding-bottom: 12px; }
+/* The navigation and status stay in place while the page scrolls. */
+.sidebar { position: sticky; top: 0; z-index: 10; align-self: flex-start; height: 100vh; overflow-y: auto; flex: 0 0 208px; display: flex; flex-direction: column; background: var(--panel); border-right: 1px solid var(--line); padding-bottom: 12px; }
 .brand { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 0 18px; border-bottom: 1px solid var(--line); font-size: 16px; font-weight: 600; }
 .brand svg { color: var(--accent); }
 .nav-title { padding: 16px 18px 6px; }
@@ -30,7 +31,7 @@ button, input, select { font: inherit; color: inherit; }
 .version { margin-top: auto; padding: 12px 18px 4px; color: var(--muted); font-size: 12px; }
 .content { flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; }
 /* Match the sidebar header height so their bottom borders line up. */
-.status-strip { display: flex; flex-wrap: wrap; min-height: 56px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.status-strip { position: sticky; top: 0; z-index: 9; display: flex; flex-wrap: wrap; min-height: 56px; background: var(--panel); border-bottom: 1px solid var(--line); }
 .status-cell { flex: 1 1 150px; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 8px 16px; border-right: 1px solid var(--line); }
 .status-value { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 main { flex: 1; padding: 24px 28px 40px; display: flex; flex-direction: column; gap: 16px; }
@@ -151,7 +152,10 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent);
    of status, and every card the full width. */
 @media (max-width: 860px) {
   .shell { flex-direction: column; flex-wrap: nowrap; }
-  .sidebar { flex: 0 0 auto; display: grid; grid-template-columns: 1fr auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 0; }
+  /* A fixed-height top bar, so the status row can stick right below it. */
+  .shell { --top-bar: 97px; }
+  .sidebar { align-self: stretch; height: var(--top-bar); overflow: hidden; flex: 0 0 auto; display: grid; grid-template-columns: 1fr auto; grid-template-rows: 48px 48px; border-right: 0; border-bottom: 1px solid var(--line); padding: 0; }
+  .status-strip { top: var(--top-bar); }
   .brand { min-height: 48px; padding: 0 16px; border-bottom: 0; }
   .version { display: flex; align-items: center; margin: 0; padding: 0 16px; }
   .nav-groups { grid-column: 1 / -1; display: flex; gap: 2px; padding: 0 8px 8px; overflow-x: auto; scrollbar-width: none; }

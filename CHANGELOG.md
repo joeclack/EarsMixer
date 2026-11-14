@@ -10,6 +10,7 @@ Product version: **1.14.0**. Node package version: **2.16.0**.
 - Remove the page title and description from the top of every admin page. The sidebar already shows which page is open; screen readers still hear the page name.
 - Align side-by-side admin cards. A card next to another card, such as About on the System page, no longer sits lower than its neighbour.
 - Fit the admin dashboard to phones. Below 860px wide the pages and the status bar each become one row you can swipe sideways, the empty space under the navigation is gone, cards use the full width instead of running off the screen, long links wrap, and fields no longer make iOS zoom in.
+- Keep the admin navigation and status bar in view while a page scrolls, on phones and computers.
 
 ## 1.13.0 — 2026-11-14
 

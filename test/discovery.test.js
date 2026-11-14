@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { advertiseMixer } = require('../lib/discovery');
+const { advertiseMixer, cleanServerName, serverName } = require('../lib/discovery');
 const { getLANAddresses } = require('../lib/utils/utils');
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const address = (value, extra = {}) => ({ family: 'IPv4', address: value, internal: false, ...extra });
@@ -34,6 +34,35 @@ test('advertises the actual HTTP port and only LAN addresses; shutdown is idempo
   assert.deepEqual(created[0].txt, { product: 'EarsMixer', protocol: '1', version: '1.4.0', path: '/' });
   await stop(); await stop();
   assert.equal(shutdown.length, 1);
+});
+
+test('server names are tidied, limited to one DNS label and fall back to the computer name', () => {
+  assert.equal(cleanServerName('  Stage \n Left  '), 'Stage Left');
+  assert.equal(cleanServerName(undefined), '');
+  assert.equal(cleanServerName('x'.repeat(63)), 'x'.repeat(63));
+  assert.equal(cleanServerName('x'.repeat(64)), null);
+  assert.equal(cleanServerName('🎧'.repeat(16)), null); // 64 bytes of UTF-8
+  assert.equal(cleanServerName(42), null);
+  assert.equal(serverName('Monitor World', 8082, 'Studio-PC'), 'Monitor World');
+  assert.equal(serverName('', 8082, 'Studio PC'), 'EarsMixer - Studio-PC (8082)');
+});
+
+test('advertises the admin name and re-announces when it changes', async () => {
+  let name = '';
+  const created = [], shutdown = [];
+  const stop = advertiseMixer({ port: 8082, version: 'test', hostname: 'Studio-PC', getName: () => name,
+    addresses: () => [{ name: 'Wi-Fi', address: '192.168.8.108' }], logger: { info() {}, warn() {} },
+    responderFactory: () => ({ createService: value => { created.push(value.name); return { advertise: async () => {} }; },
+      shutdown: async () => { shutdown.push(true); } }) });
+  await tick();
+  assert.deepEqual(created, ['EarsMixer - Studio-PC (8082)']);
+  name = 'Stage Left';
+  stop.refresh(); await tick(); await tick();
+  assert.deepEqual(created, ['EarsMixer - Studio-PC (8082)', 'Stage Left']);
+  assert.equal(shutdown.length, 1);
+  stop.refresh(); await tick();
+  assert.equal(created.length, 2, 'an unchanged name is not re-announced');
+  await stop();
 });
 
 test('loopback-only HTTP listeners never advertise a reachable LAN service', async () => {

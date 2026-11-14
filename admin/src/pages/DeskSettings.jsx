@@ -13,7 +13,7 @@ const validPort = value => /^\d+$/.test(String(value)) && Number(value) >= 1 && 
 async function loadSettings() {
   const [config, aux, channels] = await Promise.all([api("/config"), api("/aux"), api("/channels")]);
   return {
-    serverIp: config.server.ip, serverPort: String(config.server.port), oscPort: String(config.osc.port),
+    serverName: config.server.name || "", serverIp: config.server.ip, serverPort: String(config.server.port), oscPort: String(config.osc.port),
     deskIp: config.desk.ip || "", deskPort: String(config.desk.port || 9000), debug: config.debug === true,
     externals: (config.externalDevices || []).map(device => ({ name: device.name, ip: device.ip, port: String(device.port), broadcast: !!device.broadcast, loopback: !!device.loopback })),
     aux: aux.map((entry, index) => ({ number: index + 1, enabled: entry.enabled, name: entry.name, colour: entry.colour, icon: entry.icon || "" })),
@@ -24,6 +24,7 @@ async function loadSettings() {
 // The settings route takes the same form fields the desk settings page has always sent.
 function formBody(form) {
   const body = new URLSearchParams();
+  body.set("server_name", form.serverName.trim());
   body.set("server_port", form.serverPort); body.set("osc_port", form.oscPort);
   body.set("desk_ip", form.deskIp.trim()); body.set("desk_port", form.deskPort);
   if (form.debug) body.set("debug", "debug");
@@ -125,6 +126,7 @@ export function DeskSettings({ status, reload }) {
   const setRow = (key, index, patch) => setForm(current => ({ ...current, [key]: current[key].map((row, at) => at === index ? { ...row, ...patch } : row) }));
   const setAll = (key, change) => setForm(current => ({ ...current, [key]: current[key].map(row => ({ ...row, enabled: change(row.enabled) })) }));
   const problem = () => {
+    if (new TextEncoder().encode(form.serverName.trim()).length > 63) return ["connection", "Shorten the server name. Some characters, such as emoji, count as more than one."];
     if (!form.deskIp.trim()) return ["connection", "Enter the desk's IP address."];
     if (![form.serverPort, form.oscPort, form.deskPort].every(validPort)) return ["connection", "Ports must be numbers between 1 and 65535."];
     const device = form.externals.find(entry => !entry.name.trim() || !entry.ip.trim() || !validPort(entry.port));
@@ -161,6 +163,10 @@ export function DeskSettings({ status, reload }) {
     </nav>
     <div className="column grow-4">
       {section === "connection" ? <Panel title="Connection">
+        <div className="field-row">
+          <Field label="Server name" className="grow" value={form.serverName} maxLength={63} placeholder="Computer name" onInput={event => set({ serverName: event.currentTarget.value })}
+            hint="The name the app shows when it finds this server, such as Stage Left. Leave blank to use the computer name." />
+        </div>
         <div className="field-row">
           <Field label="Desk IP address" className="grow" value={form.deskIp} required inputMode="decimal" onInput={event => set({ deskIp: event.currentTarget.value })}
             hint="On the console: Setup › External Control › DiGiCo iPad." />

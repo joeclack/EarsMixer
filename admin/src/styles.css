@@ -202,3 +202,6 @@ a.button { display: inline-flex; align-items: center; color: var(--text); text-d
 .request { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--line); }
 .request:first-child { border-top: 0; }
 .request-seen { opacity: 0.6; }
+.panel + .panel { margin-top: 20px; }
+.request-close { width: 36px; height: 36px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: 20px; line-height: 1; cursor: pointer; }
+.request-close:hover { background: var(--raised); color: inherit; }

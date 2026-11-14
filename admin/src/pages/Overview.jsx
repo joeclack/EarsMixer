@@ -59,6 +59,22 @@ function Attention({ status, access }) {
   </Panel>;
 }
 
+// What the desk has sent for its input meters, so their scale can be checked
+// on a real console. Readings are only requested while a phone shows meters.
+function MetersPanel({ meters }) {
+  if (!meters) return null;
+  if (meters.kind === "simulated") return <Panel title="Signal meters" meta="Simulated (demo)"><p className="muted small">The demo sends simulated signals to phones.</p></Panel>;
+  const scale = { db: "dB", linear: "Linear (converted to dB)", unknown: "Not recognised yet: meters stay hidden" }[meters.scale] || meters.scale;
+  return <Panel title="Signal meters" meta={meters.replies ? "Live from the desk" : "No readings yet"}>
+    {meters.replies ? <dl className="facts">
+      <dt>Readings</dt><dd className="mono">{meters.replies.toLocaleString()}{meters.untagged ? " (" + meters.untagged.toLocaleString() + " untagged)" : ""}</dd>
+      <dt>Raw range</dt><dd className="mono">{meters.rawMin} to {meters.rawMax}</dd>
+      <dt>Scale</dt><dd>{scale}</dd>
+      <dt>Last</dt><dd className="mono">{meters.lastAt ? ago(meters.lastAt) : "—"}</dd>
+    </dl> : <p className="muted small">{meters.queried ? "Asked the desk for input meters, but it has not answered." : "Open the mixer on a phone to start reading the desk's input meters."}</p>}
+  </Panel>;
+}
+
 export function Overview({ status, access, reload }) {
   const log = activity(status, 200);
   const rows = status.aux.map(aux => {
@@ -79,5 +95,6 @@ export function Overview({ status, access, reload }) {
         { title: "When", mono: true, render: row => <span className="muted">{row.last ? ago(row.last.at) : "—"}</span> },
       ]} /> : <Empty>{status.loaded ? "No AUX mixes are shown to musicians." : "Waiting for the desk…"}</Empty>}
     </Panel>
+    <MetersPanel meters={status.meters} />
   </>;
 }

@@ -35,3 +35,12 @@ test("requests are limited when sent too close together or too often", () => {
   time = 6000; assert.equal(allow(), false);
   time = 61000; assert.equal(allow(), true);
 });
+
+test("a request can be closed on its own", () => {
+  const board = createRequestBoard();
+  const first = board.add({ kind: null, text: "a" }, { clientId: 1 });
+  board.add({ kind: null, text: "b" }, { clientId: 2 });
+  assert.equal(board.remove(first.id), true);
+  assert.equal(board.remove(first.id), false);
+  assert.deepEqual(board.list().map(item => item.text), ["b"]);
+});

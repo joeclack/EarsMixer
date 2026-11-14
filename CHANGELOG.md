@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 1.13.0 — 2026-11-14
+
+Product version: **1.13.0**. Node package version: **2.15.0**.
+
+- Read real input meters from the desk. While a phone shows meters, EarsMixer asks the desk about 8 times a second for each visible channel's `/Input_Channels/<n>/Channel_Input/post_meter/left`, the address in DiGiCo's own iPad command list for the SD8, SD9, SD11 and SD12 (V2242). It only queries; it never writes. DiGiCo's untagged meter replies are decoded, kept out of the cache and never relayed to other devices. Set `OSC_WEBMIXER_DESK_METERS=0` to turn this off.
+- The desk's meter units are not documented, so EarsMixer works out the scale from the values it receives (dB or linear) and shows no meter while it cannot tell. The admin Overview has a Signal meters panel with the number of readings, the raw range and the scale, to check on a real desk.
+- Close musician requests on the admin page: an × on each request, and Clear for the whole list. Typed messages show as the message itself.
+
 ## 1.12.0 — 2026-11-13
 
 Product version: **1.12.0**. Node package version: **2.14.0**.

@@ -147,13 +147,33 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent);
 .chip-disabled { opacity: 0.45; cursor: not-allowed; }
 .warning { padding: 0 12px 12px; color: var(--warn); font-size: 12px; }
 
+/* Phones and narrow windows: a compact top bar, one scrolling row of pages and
+   of status, and every card the full width. */
 @media (max-width: 860px) {
-  .sidebar { flex: 1 1 100%; border-right: 0; border-bottom: 1px solid var(--line); padding-bottom: 0; }
-  .nav-groups { display: flex; flex-wrap: wrap; padding: 6px; }
-  .nav-group { display: flex; flex-wrap: wrap; }
-  .nav-title, .version { display: none; }
-  main { padding: 16px; }
+  .shell { flex-direction: column; flex-wrap: nowrap; }
+  .sidebar { flex: 0 0 auto; display: grid; grid-template-columns: 1fr auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 0; }
+  .brand { min-height: 48px; padding: 0 16px; border-bottom: 0; }
+  .version { display: flex; align-items: center; margin: 0; padding: 0 16px; }
+  .nav-groups { grid-column: 1 / -1; display: flex; gap: 2px; padding: 0 8px 8px; overflow-x: auto; scrollbar-width: none; }
+  .nav-groups::-webkit-scrollbar, .status-strip::-webkit-scrollbar { display: none; }
+  .nav-group { display: contents; }
+  .nav-title { display: none; }
+  .nav-item { flex: 0 0 auto; min-height: 40px; margin: 0; padding: 0 12px; white-space: nowrap; }
+  .content { flex: 1 1 auto; }
+  .status-strip { flex-wrap: nowrap; min-height: 0; overflow-x: auto; scrollbar-width: none; }
+  .status-cell { flex: 0 0 auto; max-width: 70vw; padding: 6px 14px; }
+  .status-cell:last-child { border-right: 0; }
+  main { padding: 12px 12px calc(32px + env(safe-area-inset-bottom)); gap: 12px; }
+  .grow-1, .grow-2, .grow-3, .grow-4, .templates-list { flex: 1 1 100%; }
+  .row { gap: 12px; }
+  .panel-head { padding: 6px 12px; }
+  .panel-body, .empty { padding: 12px; }
+  .facts dd { overflow-wrap: anywhere; }
+  .attention li { flex-wrap: wrap; padding: 12px; }
   .editor-column + .editor-column { border-left: 0; border-top: 1px solid var(--line); }
+  /* iOS zooms into inputs smaller than 16px. */
+  .field input, .field select, .cell-input, .group-card input { font-size: 16px; }
+  .save-bar { bottom: calc(8px + env(safe-area-inset-bottom)); }
 }
 
 /* Desk settings and System */

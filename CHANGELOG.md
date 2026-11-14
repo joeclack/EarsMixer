@@ -7,6 +7,7 @@
 Product version: **1.14.0**. Node package version: **2.16.0**.
 
 - Name the server. Desk settings › Connection has a Server name field (up to 63 characters, the most a network name allows). EarsMixer advertises it on the local network instead of `EarsMixer - <computer> (<port>)`, so the app lists the server by that name, and `/api/connection` returns it as `name`. A changed name is announced at once. Leave it blank to keep the computer name.
+- Remove the page title and description from the top of every admin page. The sidebar already shows which page is open; screen readers still hear the page name.
 
 ## 1.13.0 — 2026-11-14
 

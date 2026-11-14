@@ -12,12 +12,12 @@ import { System } from "./pages/System.jsx";
 import { Requests } from "./Requests.jsx";
 
 const pages = {
-  overview: { title: "Overview", text: "Desk, access and who is on each mix.", icon: "overview" },
-  "live-mix": { title: "Live mix", text: "Every musician's sends at a glance. Read only.", icon: "live" },
-  clients: { title: "Clients", text: "Who can connect and what they changed.", icon: "clients" },
-  templates: { title: "Templates", text: "Starting layouts musicians can load in the app.", icon: "templates" },
-  "desk-settings": { title: "Desk settings", text: "How EarsMixer reaches the desk and what musicians can see.", icon: "desk" },
-  system: { title: "System", text: "Admin password and version.", icon: "system" },
+  overview: { title: "Overview", icon: "overview" },
+  "live-mix": { title: "Live mix", icon: "live" },
+  clients: { title: "Clients", icon: "clients" },
+  templates: { title: "Templates", icon: "templates" },
+  "desk-settings": { title: "Desk settings", icon: "desk" },
+  system: { title: "System", icon: "system" },
 };
 const nav = [
   ["Monitor", ["overview", "live-mix"]],
@@ -69,10 +69,7 @@ function App() {
         <StatusCell label="Server" value={host || "…"} />
       </div>
       <main>
-        <header className="page-head">
-          <h1>{pages[page].title}</h1>
-          <p className="muted">{pages[page].text}</p>
-        </header>
+        <h1 className="sr-only">{pages[page].title}</h1>
         {status.error && data ? <p className="banner" role="alert">Connection to the server lost. Reconnecting…</p> : null}
         {data ? <Requests requests={data.requests} reload={status.reload} /> : null}
         {!data ? <p className="empty">{status.error || "Loading…"}</p>

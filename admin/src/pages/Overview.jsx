@@ -63,7 +63,7 @@ function Attention({ status, access }) {
 // on a real console. Readings are only requested while a phone shows meters.
 function MetersPanel({ meters }) {
   if (!meters) return null;
-  const scale = { db: "dB", linear: "Linear (converted to dB)", unknown: "Not recognised yet: meters stay hidden" }[meters.scale] || meters.scale;
+  const scale = { db: "dB", linear: "Linear (converted to dB)", unknown: "Not recognised yet: meters stay hidden", constant: "Readings never change, so they are not levels: meters stay hidden" }[meters.scale] || meters.scale;
   return <Panel title="Signal meters" meta={meters.replies ? "Live from the desk" : "No readings yet"}>
     {meters.replies ? <dl className="facts">
       <dt>Readings</dt><dd className="mono">{meters.replies.toLocaleString()}{meters.untagged ? " (" + meters.untagged.toLocaleString() + " untagged)" : ""}</dd>

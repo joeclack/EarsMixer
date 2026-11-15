@@ -27,6 +27,8 @@ test("the scale is worked out from the values seen, and unknown scales show noth
   assert.equal(detectScale(-80, -3), "db");
   assert.equal(detectScale(0, 0.9), "linear");
   assert.equal(detectScale(0, 255), "unknown");
+  assert.equal(detectScale(2, 2), "constant");
+  assert.equal(toDb(2, "constant"), null);
   assert.equal(toDb(-12, "db"), -12);
   assert.equal(toDb(0.5, "linear"), -6);
   assert.equal(toDb(0, "linear"), null);

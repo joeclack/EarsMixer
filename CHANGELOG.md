@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.14.4 — 2026-11-20
+
+Product version: **1.14.4**. Node package version: **2.16.4**.
+
+- Hide signal meters when the desk's readings never change. An SD9 answered every meter query with a constant 2, which was read as +6 dB and drew every meter at full. A fixed number is not a level, so no meter is shown and the Signal meters panel says so until the readings start to move. Real SD9 input levels still need another way to read them.
+
 ## 1.14.3 — 2026-11-20
 
 Product version: **1.14.3**. Node package version: **2.16.3**.

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.14.1 — 2026-11-15
+
+Product version: **1.14.1**. Node package version: **2.16.1**.
+
+- Fix the macOS build. The dmg ran out of space while being created, so no release was published after 1.11.0. This release includes everything in 1.12.0 to 1.14.0.
+
 ## 1.14.0 — 2026-11-14
 
 Product version: **1.14.0**. Node package version: **2.16.0**.

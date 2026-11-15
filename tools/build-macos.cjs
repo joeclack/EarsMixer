@@ -116,7 +116,12 @@ function main() {
     fs.symlinkSync("/Applications", path.join(staging, "Applications"));
     const dmg = path.join(root, "dist", `EarsMixer-${version}-macos.dmg`);
     fs.rmSync(dmg, { force: true });
-    run("hdiutil", ["create", "-volname", "EarsMixer", "-srcfolder", staging, "-ov", "-format", "UDZO", dmg]);
+    // hdiutil sizes the image itself and runs out of space on the large server binaries, so give it room.
+    const used = spawnSync("du", ["-sk", staging], { encoding: "utf8" });
+    if (used.status !== 0) throw new Error("du failed.");
+    const megabytes = Math.ceil(parseInt(used.stdout, 10) / 1024 * 1.3) + 64;
+    run("hdiutil", ["create", "-volname", "EarsMixer", "-srcfolder", staging, "-ov", "-format", "UDZO",
+        "-fs", "HFS+", "-megabytes", String(megabytes), dmg]);
     console.log(`macOS app: ${dmg}`);
 }
 

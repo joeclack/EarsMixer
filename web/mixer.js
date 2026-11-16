@@ -25,7 +25,6 @@ let resumeCheck = null;
 const channelElements = new Map();
 const pendingWrites = new Map();
 const mixerStatus = document.getElementById("mixerStatus");
-const snapshotName = document.getElementById("snapshot");
 const WRITE_INTERVAL_MS = 35;
 
 const mixerControls = document.getElementById("mixerControls");
@@ -283,13 +282,11 @@ function onMessage(event) {
   if (json.config) {
     mixerConfigReady = true;
     buildChannels(Array.isArray(json.config.channels) ? json.config.channels : []);
-    updateSnapshot(json.config.snapshot);
     buildAux(Array.isArray(json.config.aux) ? json.config.aux : []);
     return;
   }
   if (typeof json.address !== "string" || !Array.isArray(json.args)) return;
   if (json.address === "/MixReload") { requestValues({ preserveValues: true }); return; }
-  if (json.address === "/SnapshotName") { updateSnapshot(json.args[0]); return; }
   const levelMatch = json.address.match(/^\/Input_Channels\/(\d+)\/Aux_Send\/(\d+)\/send_(level|pan)$/);
   if (levelMatch) {
     if (levelMatch[2] !== auxSelect.value || "send_" + levelMatch[3] !== sendParameter()) return;
@@ -318,12 +315,6 @@ function onMessage(event) {
   if (auxMatch) {
     for (const option of auxSelect.options) if (option.value === auxMatch[1]) option.textContent = String(json.args[0] || "AUX " + auxMatch[1]);
   }
-}
-
-function updateSnapshot(name) {
-  snapshotName.textContent = typeof name === "string" ? name : "";
-  snapshotName.title = "Desk snapshot: " + snapshotName.textContent;
-  snapshotName.hidden = !snapshotName.textContent;
 }
 
 function formatColour(colour) {

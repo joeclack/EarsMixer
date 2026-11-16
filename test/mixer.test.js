@@ -175,7 +175,6 @@ test("mixer filters enabled controls, sorts configured order and queries actual 
   assert.deepEqual(mixer.socket().sent.filter(message => message.address).map(message => message.address), [
     "/Input_Channels/2/Aux_Send/2/send_level/?", "/Input_Channels/65/Aux_Send/2/send_level/?",
   ]);
-  assert.equal(mixer.controls.get("snapshot").textContent, "Test cue");
 });
 
 test("each fader waits for its own finite value and ignores responses for another AUX", () => {

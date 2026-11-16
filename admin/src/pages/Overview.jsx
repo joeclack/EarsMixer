@@ -63,7 +63,6 @@ function Attention({ status, access }) {
 // on a real console. Readings are only requested while a phone shows meters.
 function MetersPanel({ meters }) {
   if (!meters) return null;
-  if (meters.kind === "simulated") return <Panel title="Signal meters" meta="Simulated (demo)"><p className="muted small">The demo sends simulated signals to phones.</p></Panel>;
   const scale = { db: "dB", linear: "Linear (converted to dB)", unknown: "Not recognised yet: meters stay hidden" }[meters.scale] || meters.scale;
   return <Panel title="Signal meters" meta={meters.replies ? "Live from the desk" : "No readings yet"}>
     {meters.replies ? <dl className="facts">

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Remove simulated signal meters from the demo server. Connected DiGiCo desks still supply live meter readings.
+
 ## 1.14.1 — 2026-11-15
 
 Product version: **1.14.1**. Node package version: **2.16.1**.

@@ -14,17 +14,12 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 /* Keep header controls below iOS's status-bar blur, beyond the safe-area inset. */
 @supports (-webkit-touch-callout: none) { #mix { padding-top: 30px; } }
 .mixer-header-controls { display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-width: 0; margin-left: auto; }
-.mixer-brand { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
-.mixer-brand img { width: 66px; height: 26px; object-fit: contain; filter: invert(); flex-shrink: 0; }
-.mixer-brand span { font-size: 15px; font-weight: 600; white-space: nowrap; }
 .mix-choice { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .mix-choice > span { font-size: 12px; color: #a8afb9; white-space: nowrap; }
 #aux { appearance: auto; min-width: 0; max-width: 210px; padding: 9px 10px; color: #f3f4f6; background: #272c34; border: 1px solid #444b57; border-radius: 8px; font-size: 14px; font-weight: 600; }
 #aux option { background: #272c34; color: #f3f4f6; }
-.mixer-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left)); border-bottom: 1px solid #292d35; flex: 0 0 auto; }
-.mixer-status { color: #a8afb9; font-size: 12px; flex: 0 0 auto; }
+.mixer-status { color: #a8afb9; font-size: 12px; min-width: 0; }
 .disconnected .mixer-status { color: #edbd80; }
-.mixer-brand .snapshot-name { margin-left: 8px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; font-size: 12px; font-weight: 400; color: #a8afb9; }
 button:disabled { opacity: 0.5; cursor: default; }
 #editLayout[aria-pressed="true"] { background: #e7edf6; color: #171c24; border-color: #e7edf6; }
 .layout-editor { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left)); background: #202630; border-bottom: 1px solid #52627c; flex: 0 0 auto; }
@@ -63,8 +58,7 @@ button:disabled { opacity: 0.5; cursor: default; }
 .layout-drag .channel-header { display: flex; flex: 1; }
 .layout-drag .fader-control, .layout-drag .level-readout { display: none; }
 #emptyChannels { max-width: 500px; margin: 24px auto; text-align: center; color: #a5adbb; line-height: 1.6; font-size: 14px; }
-@media (max-width: 600px) { #mix { gap: 10px; padding-inline: 12px; } .mixer-header-controls { gap: 8px; } .mixer-brand span, .mix-choice > span { display: none; } #aux { max-width: 32vw; } .mixer-toolbar { padding-inline: 12px; } }
-@media (max-width: 900px) { .mixer-brand .snapshot-name { display: none; } }
+@media (max-width: 600px) { #mix { gap: 10px; padding-inline: 12px; } .mixer-header-controls { gap: 8px; } .mix-choice > span { display: none; } #aux { max-width: 32vw; } }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 
 .view-toggle { display: none; align-items: center; gap: 2px; padding: 3px; background: #191d24; border: 1px solid #3a404b; border-radius: 12px; }

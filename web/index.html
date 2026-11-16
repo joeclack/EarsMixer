@@ -62,12 +62,9 @@
   </head>
   <body class="disconnected">
     <header id="mix">
-      <div class="mixer-brand"><img src="/images/Glow_Logo_2026.svg" alt="Glow"><span>EarsMixer</span><span id="snapshot" class="snapshot-name" hidden></span></div>
+      <span id="mixerStatus" class="mixer-status" role="status" aria-live="polite">Connecting…</span>
       <div class="mixer-header-controls"><label class="mix-choice"><span>Your mix</span><select id="aux" aria-label="Your AUX mix" disabled></select></label></div>
     </header>
-    <div class="mixer-toolbar">
-      <span id="mixerStatus" class="mixer-status" role="status" aria-live="polite">Connecting…</span>
-    </div>
     <div id="mixerControls" class="mixer-controls">
       <div id="controlsBackdrop" class="controls-backdrop" hidden></div>
       <button id="controlsToggle" class="controls-toggle" type="button" aria-expanded="false" aria-controls="controlsFan" aria-label="Open mixer controls" title="Mixer controls"><svg class="app-icon controls-open-icon" aria-hidden="true"><use href="vendor/lucide.svg#slidersHorizontal"></use></svg><svg class="app-icon controls-close-icon" aria-hidden="true"><use href="vendor/lucide.svg#x"></use></svg></button>

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 1.14.2 — 2026-11-16
+
+Product version: **1.14.2**. Node package version: **2.16.2**.
+
+- Simplify the browser mixer header so connection status sits beside the AUX selector.
 - Remove simulated signal meters from the demo server. Connected DiGiCo desks still supply live meter readings.
 
 ## 1.14.1 — 2026-11-15

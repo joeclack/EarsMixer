@@ -64,3 +64,9 @@ For a console-connected source deployment, configure the server and run `npm sta
 - Product version (Windows and macOS): **1.14.2**. Node package version: **2.16.2**, maintained in its separate upstream series.
 
 See [CHANGELOG.md](CHANGELOG.md) for release history. Based on [OSCWebMixer2 by Marc Castles](https://github.com/castles/OSCWebMixer2), maintained by Joe Clack under the [MIT licence](LICENSE).
+
+## Development checks
+
+Run `npm test` from this repository. For browser or admin changes, run `npm run build` and exercise the affected flow against the mock desk with `npm run dev`.
+
+See [contributor guidance](AGENTS.md), the [design system](DESIGN_SYSTEM.md), the [release plan](PLAN.md) and the [security policy](SECURITY.md). The [public website](https://github.com/joeclack/EarsMixer-Site) lives in a separate repository.

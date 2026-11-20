@@ -83,9 +83,7 @@ mock.stdout.on("data", chunk => {
         OSC_WEBMIXER_CONFIG_DIR: configDirectory,
         OSC_WEBMIXER_DATA_DIR: process.env.OSC_WEBMIXER_DATA_DIR || path.join(configDirectory, "data"),
         OSC_WEBMIXER_BIND_ADDRESS: bindAddress,
-        OSC_WEBMIXER_PUBLIC_URL: url,
-        // The mock desk has no meter data.
-        OSC_WEBMIXER_DESK_METERS: '0'
+        OSC_WEBMIXER_PUBLIC_URL: url
       }
     });
   }

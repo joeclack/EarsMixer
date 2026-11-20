@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.14.4 — 2026-11-20
+
+Product version: **1.14.4**. Node package version: **2.16.4**.
+
+- Remove signal meters. The server no longer asks the desk for input meters or decodes its meter replies, mix configs no longer advertise meters, `meters` messages from phones are ignored, and the admin overview's Signal meters panel is gone. `OSC_WEBMIXER_DESK_METERS` no longer does anything.
+
 ## 1.14.3 — 2026-11-20
 
 Product version: **1.14.3**. Node package version: **2.16.3**.

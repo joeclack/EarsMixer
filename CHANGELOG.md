@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.14.4 — 2026-11-20
+
+Product version: **1.14.4**. Node package version: **2.16.4**.
+
+- Turn off desk signal meters for now. Their readings aren't reliable yet (an SD9 answered every meter query with the same value, which drew every meter at full). The server no longer asks the desk for meters, phones and the browser mixer show none, and the admin page hides the Signal meters panel. Set `OSC_WEBMIXER_DESK_METERS=1` to try them.
+
 ## 1.14.3 — 2026-11-20
 
 Product version: **1.14.3**. Node package version: **2.16.3**.

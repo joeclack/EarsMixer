@@ -62,3 +62,11 @@ test("the stream polls the desk once per tick for every channel a listener can s
   assert.deepEqual(polled[0].sort(), [1, 2, 3]);
   assert.equal(stream.receive({ address: "/x", args: [] }), false);
 });
+
+test("desk meters are off unless OSC_WEBMIXER_DESK_METERS=1", () => {
+  const { deskMetersEnabled } = require("../lib/desk-meters");
+  assert.equal(deskMetersEnabled({}), false);
+  assert.equal(deskMetersEnabled({ OSC_WEBMIXER_DESK_METERS: "0" }), false);
+  assert.equal(deskMetersEnabled({ OSC_WEBMIXER_DESK_METERS: "true" }), false);
+  assert.equal(deskMetersEnabled({ OSC_WEBMIXER_DESK_METERS: "1" }), true);
+});

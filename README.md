@@ -61,7 +61,28 @@ For a console-connected source deployment, configure the server and run `npm sta
 - `npm run installer:windows` builds the Windows installer into `dist/`; requires Inno Setup 6.7+ and the Windows .NET Framework C# compiler.
 - `npm run installer:macos` builds the macOS dmg into `dist/`; run it on a Mac with the Xcode command line tools.
 - GitHub Actions builds release installers from `main`; feature branches remain unpublished until merged. Product metadata and the release tag version come from [installer/version.inc.iss](installer/version.inc.iss).
-- Product version (Windows and macOS): **1.14.2**. Node package version: **2.16.2**, maintained in its separate upstream series.
+- Product version (Windows and macOS): **1.14.3**. Node package version: **2.16.3**, maintained in its separate upstream series.
+
+### Signing the macOS app
+
+Release builds of the macOS app are signed with a Developer ID certificate, run with the hardened runtime and are notarised by Apple, so the dmg opens without Gatekeeper warnings. GitHub Actions does this on `main` and manual runs when these repository secrets are set. Without them, and on pull requests, the app is signed ad hoc and macOS warns when it's opened.
+
+| Secret | Value |
+| --- | --- |
+| `MACOS_CERTIFICATE_P12` | The Developer ID Application certificate and private key, exported from Keychain Access as a `.p12`, base64 encoded (`base64 -i certificate.p12 \| pbcopy`) |
+| `MACOS_CERTIFICATE_PASSWORD` | The password set when exporting the `.p12` |
+| `APPLE_API_KEY_P8` | The contents of an App Store Connect API key (`AuthKey_….p8`) with the Developer role, used by `notarytool` |
+| `APPLE_API_KEY_ID` | That key's ID |
+| `APPLE_API_ISSUER_ID` | The issuer ID shown above the keys in App Store Connect |
+
+To create them:
+
+1. In [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/certificates/list), add a **Developer ID Application** certificate (Account Holder only). Use Keychain Access → Certificate Assistant → Request a Certificate From a Certificate Authority for the CSR, then double-click the downloaded certificate to install it.
+2. In Keychain Access → login → My Certificates, export **Developer ID Application: …** with its private key as a `.p12` with a strong password.
+3. In App Store Connect → Users and Access → Integrations → App Store Connect API, generate a team key with the **Developer** role and download the `.p8`.
+4. Add the five secrets under the repository's Settings → Secrets and variables → Actions, then delete the exported `.p12` and the `.p8` from your Mac or store them in a password manager.
+
+To sign locally, install the certificate in your login keychain and run `npm run installer:macos` with `MACOS_SIGN_IDENTITY` set to the certificate's name (`security find-identity -v -p codesigning`). Add `APPLE_API_KEY_PATH`, `APPLE_API_KEY_ID` and `APPLE_API_ISSUER_ID` to notarise too. `MACOS_SIGN_IDENTITY=-` signs ad hoc with the hardened runtime to test the [server entitlements](macos/server.entitlements). Building the Intel server binary on Apple silicon needs Rosetta.
 
 See [CHANGELOG.md](CHANGELOG.md) for release history. Based on [OSCWebMixer2 by Marc Castles](https://github.com/castles/OSCWebMixer2), maintained by Joe Clack under the [MIT licence](LICENSE).
 

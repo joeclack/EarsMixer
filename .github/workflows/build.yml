@@ -1,0 +1,237 @@
+name: build-and-package
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_installer:
+        description: 'Run full Windows installation and upgrade tests'
+        type: boolean
+        required: false
+        default: false
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Check minified assets are up to date
+        run: |
+          npm run build
+          git diff --exit-code -- web/mixer.min.js web/mixer.min.css \
+            || (echo "::error::web/mixer.min.* is stale - run 'npm run build' and commit the result" && exit 1)
+
+      - name: Build executables
+        run: npm run package
+
+      - name: Upload executables
+        uses: actions/upload-artifact@v4
+        with:
+          name: EarsMixer-binaries
+          path: dist/
+
+      - name: Upload plugins
+        uses: actions/upload-artifact@v4
+        with:
+          name: EarsMixer-plugins
+          path: plugins/
+
+  windows-installer:
+    name: Windows installer
+    runs-on: windows-2025
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Use HTTPS for the public OSC dependency
+        # The lockfile uses a Git SSH URL; no SSH key is needed for this public repo.
+        run: |
+          git config --global --add 'url.https://github.com/.insteadOf' 'ssh://git@github.com/'
+          git config --global --add 'url.https://github.com/.insteadOf' 'git@github.com:'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build Windows installer
+        # Inno Setup and the .NET Framework compiler are included in windows-2025.
+        # Product metadata comes from installer/version.inc.iss.
+        run: npm run installer:windows
+
+      - name: Test Windows installer upgrades
+        if: github.event_name == 'workflow_dispatch' && inputs.test_installer
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          $installer = @(Get-ChildItem dist/*-windows-x64-setup.exe)
+          if ($installer.Count -ne 1) { throw 'Expected one installer to test.' }
+          ./tools/test-installer-upgrade.ps1 -Installer $installer[0].FullName
+
+      - name: Upload installer test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: EarsMixer-installer-test-logs
+          path: dist/installer-smoke/*.log
+          if-no-files-found: ignore
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: EarsMixer-windows-installer
+          path: dist/*.exe
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  macos-app:
+    name: macOS app
+    runs-on: macos-15
+    # Notarisation usually takes a few minutes but can queue for longer.
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      # Developer ID signing and notarisation run on main and manual runs when the
+      # secrets exist (see README "Signing the macOS app"). Other builds are signed ad hoc
+      # with the hardened runtime so the server start check still covers the entitlements.
+      SIGN_FOR_RELEASE: ${{ github.event_name != 'pull_request' && secrets.MACOS_CERTIFICATE_P12 != '' && secrets.APPLE_API_KEY_P8 != '' }}
+      MACOS_SIGN_IDENTITY: '-'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Use HTTPS for the public OSC dependency
+        run: |
+          git config --global --add 'url.https://github.com/.insteadOf' 'ssh://git@github.com/'
+          git config --global --add 'url.https://github.com/.insteadOf' 'git@github.com:'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Import Developer ID certificate and notary key
+        if: env.SIGN_FOR_RELEASE == 'true'
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          keychain_password=$(openssl rand -base64 24)
+          printf '%s' "$MACOS_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$RUNNER_TEMP/certificate.p12" -P "$MACOS_CERTIFICATE_PASSWORD" -f pkcs12 -k "$keychain" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/certificate.p12"
+          identity=$(security find-identity -v -p codesigning "$keychain" | awk '/Developer ID Application/ { print $2; exit }')
+          if [ -z "$identity" ]; then echo "::error::No Developer ID Application identity in MACOS_CERTIFICATE_P12"; exit 1; fi
+          echo "MACOS_SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+          printf '%s\n' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/notary-key.p8"
+          echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/notary-key.p8" >> "$GITHUB_ENV"
+
+      - name: Build macOS app
+        env:
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: npm run installer:macos
+
+      - name: Check Gatekeeper accepts the app
+        if: env.SIGN_FOR_RELEASE == 'true'
+        run: |
+          codesign --display --verbose=2 dist/macos/EarsMixer.app 2>&1 | grep -E 'Authority=Developer ID Application|flags=.*runtime'
+          spctl --assess --type execute --verbose=2 dist/macos/EarsMixer.app
+
+      - name: Remove signing keychain and notary key
+        if: always() && env.SIGN_FOR_RELEASE == 'true'
+        run: |
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
+          rm -f "$RUNNER_TEMP/notary-key.p8"
+
+      - name: Check the server starts
+        run: |
+          home=$(mktemp -d)
+          OSC_WEBMIXER_HOME="$home" OSC_WEBMIXER_WEB_PORT=8765 dist/macos/EarsMixer.app/Contents/Resources/server/earsmixer-arm64 > "$home/out.log" 2>&1 &
+          pid=$!
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8765/api/connection > /dev/null; then kill $pid; echo "Server answered"; exit 0; fi
+            sleep 1
+          done
+          cat "$home/out.log"; kill $pid || true; exit 1
+
+      - name: Upload macOS app
+        uses: actions/upload-artifact@v4
+        with:
+          name: EarsMixer-macos-app
+          path: dist/*-macos.dmg
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  release:
+    name: Publish Windows release
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: [build, windows-installer, macos-app]
+    runs-on: windows-2025
+    permissions:
+      contents: write
+    concurrency:
+      group: earsmixer-release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Windows installer
+        uses: actions/download-artifact@v4
+        with:
+          name: EarsMixer-windows-installer
+          path: dist
+
+      - name: Download macOS app
+        uses: actions/download-artifact@v4
+        with:
+          name: EarsMixer-macos-app
+          path: dist
+
+      - name: Publish versioned release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./tools/publish-windows-release.ps1 -Repository $env:GITHUB_REPOSITORY -Commit $env:GITHUB_SHA

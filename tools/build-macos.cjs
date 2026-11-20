@@ -2,7 +2,16 @@
 
 // Builds the macOS menu bar app and dmg (dist/EarsMixer-<version>-macos.dmg).
 // Run on a Mac with the Xcode command line tools: npm run installer:macos
-// The app is universal (Apple silicon and Intel) and ad-hoc signed, not notarised.
+// The app is universal (Apple silicon and Intel).
+//
+// Signing is controlled by environment variables:
+//   MACOS_SIGN_IDENTITY  "Developer ID Application: …" (or its SHA-1 hash) to sign for
+//                        distribution with the hardened runtime. "-" signs ad hoc with the
+//                        hardened runtime, which checks the entitlements without a certificate.
+//                        Unset: ad-hoc signature without the hardened runtime (local builds).
+//   APPLE_API_KEY_PATH, APPLE_API_KEY_ID, APPLE_API_ISSUER_ID
+//                        App Store Connect API key (.p8 path, key ID, issuer ID). When set with a
+//                        Developer ID identity, the dmg is notarised by Apple and the ticket stapled.
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -13,6 +22,8 @@ const root = path.resolve(__dirname, "..");
 const out = path.join(root, "dist", "macos");
 const app = path.join(out, "EarsMixer.app");
 const contents = path.join(app, "Contents");
+
+const serverEntitlements = path.join(root, "macos", "server.entitlements");
 
 function run(command, args, options = {}) {
     const result = spawnSync(command, args, { cwd: root, stdio: "inherit", ...options });
@@ -103,12 +114,13 @@ function main() {
     buildIcon(resources);
     fs.copyFileSync(path.join(root, "LICENSE"), path.join(resources, "LICENSE"));
 
-    // Ad-hoc signatures: Apple silicon will not run unsigned code.
+    // Sign the nested server binaries first, then the app that contains them.
+    const signing = signingOptions();
     for (const arch of ["arm64", "x64"]) {
-        run("codesign", ["--force", "--sign", "-", path.join(serverDir, `earsmixer-${arch}`)]);
+        run("codesign", [...signing.flags, ...signing.entitlements(serverEntitlements), path.join(serverDir, `earsmixer-${arch}`)]);
     }
-    run("codesign", ["--force", "--sign", "-", app]);
-    run("codesign", ["--verify", "--strict", app]);
+    run("codesign", [...signing.flags, app]);
+    run("codesign", ["--verify", "--strict", "--deep", "--verbose=2", app]);
 
     const staging = path.join(out, "dmg");
     fs.mkdirSync(staging, { recursive: true });
@@ -122,8 +134,46 @@ function main() {
     const megabytes = Math.ceil(parseInt(used.stdout, 10) / 1024 * 1.3) + 64;
     run("hdiutil", ["create", "-volname", "EarsMixer", "-srcfolder", staging, "-ov", "-format", "UDZO",
         "-fs", "HFS+", "-megabytes", String(megabytes), dmg]);
+
+    if (signing.distribution) {
+        run("codesign", ["--force", "--timestamp", "--sign", signing.identity, dmg]);
+        notarise(dmg);
+    }
     console.log(`macOS app: ${dmg}`);
 }
+
+// Developer ID builds use the hardened runtime and a secure timestamp, both required
+// for notarisation. Ad-hoc builds can't be timestamped.
+function signingOptions(env = process.env) {
+    const identity = (env.MACOS_SIGN_IDENTITY || "").trim();
+    if (!identity) {
+        console.log("MACOS_SIGN_IDENTITY not set: ad-hoc signing without the hardened runtime. macOS will warn when the app is opened.");
+        return { identity: "-", distribution: false, flags: ["--force", "--sign", "-"], entitlements: () => [] };
+    }
+    const distribution = identity !== "-";
+    return {
+        identity,
+        distribution,
+        flags: ["--force", "--options", "runtime", ...(distribution ? ["--timestamp"] : []), "--sign", identity],
+        entitlements: file => ["--entitlements", file],
+    };
+}
+
+// Submits the signed dmg to Apple's notary service, waits for the result and staples
+// the ticket so Gatekeeper accepts it offline.
+function notarise(dmg, env = process.env) {
+    const key = env.APPLE_API_KEY_PATH, keyId = env.APPLE_API_KEY_ID, issuer = env.APPLE_API_ISSUER_ID;
+    if (!key || !keyId || !issuer) {
+        console.log("APPLE_API_KEY_PATH, APPLE_API_KEY_ID or APPLE_API_ISSUER_ID not set: signed but not notarised.");
+        return;
+    }
+    run("xcrun", ["notarytool", "submit", dmg, "--key", key, "--key-id", keyId, "--issuer", issuer, "--wait", "--timeout", "30m"]);
+    run("xcrun", ["stapler", "staple", dmg]);
+    run("xcrun", ["stapler", "validate", dmg]);
+    run("spctl", ["--assess", "--type", "open", "--context", "context:primary-signature", "--verbose=2", dmg]);
+}
+
+module.exports = { signingOptions };
 
 if (require.main === module) {
     try { main(); } catch (error) { console.error(error.message); process.exitCode = 1; }

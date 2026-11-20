@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The macOS app can be signed with a Developer ID certificate and notarised by Apple, so it opens without the "Apple could not verify" warning. Release builds on `main` do this when the signing secrets are set. The server binaries run with the hardened runtime.
+
 ## 1.14.2 — 2026-11-16
 
 Product version: **1.14.2**. Node package version: **2.16.2**.

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Hardened runtime exceptions for the pkg-built Node.js server binaries.
+  V8 compiles JavaScript at run time, so it needs JIT and writable executable
+  memory. pkg unpacks native add-ons (for example serialport's, used by the OSC
+  library) to a temporary folder and loads them; they aren't signed with our
+  team ID, so library validation is disabled for these binaries only.
+  The menu bar app itself runs with the default hardened runtime.
+-->
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.cs.allow-jit</key><true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key><true/>
+    <key>com.apple.security.cs.disable-library-validation</key><true/>
+</dict>
+</plist>

@@ -3,6 +3,7 @@ import { api } from "../api.js";
 import { useAction } from "../hooks.js";
 import { clientName } from "../format.mjs";
 import { iconPath, instrumentIcons } from "../icons.js";
+import { CHANNEL_COLOURS, CHANNEL_NEUTRALS, channelColourName } from "../../../lib/channel-colours.js";
 import { arrowMove, useSortable } from "../sortable.js";
 import { move } from "../templates-model.mjs";
 import { Button, Empty, Grip, Message, Panel } from "../ui.jsx";
@@ -17,7 +18,7 @@ async function loadSettings() {
     deskIp: config.desk.ip || "", deskPort: String(config.desk.port || 9000), debug: config.debug === true,
     externals: (config.externalDevices || []).map(device => ({ name: device.name, ip: device.ip, port: String(device.port), broadcast: !!device.broadcast, loopback: !!device.loopback })),
     aux: aux.map((entry, index) => ({ number: index + 1, enabled: entry.enabled, name: entry.name, colour: entry.colour, icon: entry.icon || "" })),
-    channels: channels.map((entry, index) => ({ number: index + 1, enabled: entry.enabled, name: entry.name, order: entry.order, title: entry.title || "", icon: entry.icon || "" }))
+    channels: channels.map((entry, index) => ({ number: index + 1, enabled: entry.enabled, name: entry.name, order: entry.order, title: entry.title || "", colour: entry.colour || "", icon: entry.icon || "" }))
       .sort((a, b) => a.order - b.order),
   };
 }
@@ -41,7 +42,7 @@ function formBody(form) {
   for (const channel of [...form.channels].sort((a, b) => a.number - b.number)) {
     body.append("channelEnabled[]", String(channel.enabled)); body.append("channelName[]", channel.name);
     body.append("channelOrder[]", String(position.get(channel.number))); body.append("channelIcon[]", channel.icon);
-    body.append("sectionTitle[]", channel.title);
+    body.append("sectionTitle[]", channel.title); body.append("channelColour[]", channel.colour);
   }
   return body;
 }
@@ -59,6 +60,32 @@ function IconPicker({ value, label, onChange }) {
         {instrumentIcons.map(name => <button type="button" key={name} aria-label={name.replace(/[-_]/g, " ")} aria-pressed={value.endsWith(iconPath(name)) ? "true" : "false"} onClick={() => choose(iconPath(name))}>
           <img src={iconPath(name)} alt="" width="36" height="36" loading="lazy" />
         </button>)}
+      </div>
+    </dialog>
+  </>;
+}
+// Channel colours come from a fixed palette: each colour's light, main and dark
+// versions in a column, with white and black in a last column.
+function ColourPicker({ value, label, onChange }) {
+  const dialog = useRef(null);
+  const choose = colour => { onChange(colour); dialog.current.close(); };
+  const currentName = channelColourName(value);
+  const swatch = hex => <button type="button" key={hex} className="colour-swatch" style={{ background: hex }} aria-label={channelColourName(hex)} title={channelColourName(hex)}
+    aria-pressed={value === hex ? "true" : "false"} onClick={() => choose(hex)} />;
+  return <>
+    <button type="button" className={"colour-button" + (value ? "" : " colour-unset")} style={value ? { background: value } : undefined}
+      aria-label={label + ", " + (currentName || "none chosen")} title={currentName || "No colour"} onClick={() => dialog.current.showModal()} />
+    <dialog ref={dialog} className="icon-dialog colour-dialog" aria-label={label}>
+      <div className="panel-head"><h2>Choose a colour</h2><Button onClick={() => choose("")}>No colour</Button><Button onClick={() => dialog.current.close()}>Close</Button></div>
+      <div className="colour-grid">
+        {CHANNEL_COLOURS.map(colour => <div key={colour.name} className="colour-column">
+          {[colour.light, colour.main, colour.dark].map(swatch)}
+          <span className="small muted">{colour.name}</span>
+        </div>)}
+        <div className="colour-column">
+          {CHANNEL_NEUTRALS.map(colour => swatch(colour.value))}
+          <span className="small muted">Mono</span>
+        </div>
       </div>
     </dialog>
   </>;
@@ -197,7 +224,7 @@ export function DeskSettings({ status, reload }) {
       </Panel> : null}
 
       {section === "channels" ? <Panel title="Channels" meta={shown(form.channels)} flush actions={selectionActions("channels")}>
-        <p className="hint">Drag a handle to set the order musicians see. Arrow keys on a handle also move a channel. A section title starts a new heading in the browser mixer.</p>
+        <p className="hint">Drag a handle to set the order musicians see. Arrow keys on a handle also move a channel. A section title starts a new heading in the browser mixer. A colour from the palette marks the channel in the mobile app.</p>
         {form.channels.length ? <ul className="desk-channels" ref={channelList}>
           {form.channels.map((channel, index) => <li key={channel.number} className={channel.enabled ? "" : "row-off"}>
             <button type="button" className="grip grip-top" aria-label={"Move channel " + channel.number + ". Use the up and down arrow keys."} onKeyDown={event => arrowMove(event, index, form.channels.length, moveChannel)}><Grip /></button>
@@ -205,7 +232,10 @@ export function DeskSettings({ status, reload }) {
             <Check checked={channel.enabled} label={"Show channel " + channel.number} onChange={enabled => setRow("channels", index, { enabled })} />
             <input className="cell-input" value={channel.name} aria-label={"Channel " + channel.number + " name"} onInput={event => setRow("channels", index, { name: event.currentTarget.value })} />
             <input className="cell-input" value={channel.title} placeholder="Section title" aria-label={"Channel " + channel.number + " section title"} onInput={event => setRow("channels", index, { title: event.currentTarget.value })} />
-            <IconPicker value={channel.icon} label={"Channel " + channel.number + " icon"} onChange={icon => setRow("channels", index, { icon })} />
+            <span className="channel-style">
+              <ColourPicker value={channel.colour} label={"Channel " + channel.number + " colour"} onChange={colour => setRow("channels", index, { colour })} />
+              <IconPicker value={channel.icon} label={"Channel " + channel.number + " icon"} onChange={icon => setRow("channels", index, { icon })} />
+            </span>
           </li>)}
         </ul> : waiting}
       </Panel> : null}

@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
-const { createClientAccess } = require("../lib/client-access");
+const { createClientAccess, clientType } = require("../lib/client-access");
 
 test("PIN pairing admits paired devices until the PIN changes or access is revoked", async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "osc-access-test-"));
@@ -70,4 +70,33 @@ test("a damaged access file never switches the PIN off", async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "osc-access-test-"));
   await fs.writeFile(path.join(directory, "client-access.json"), "{ not json");
   await assert.rejects(createClientAccess(directory));
+});
+
+test("each device remembers whether it last connected from the browser mixer or an app", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "osc-access-test-"));
+  const access = await createClientAccess(directory);
+  const phone = "a1b2c3d4-0000-4000-8000-000000000003", laptop = "a1b2c3d4-0000-4000-8000-000000000004";
+  assert.equal(access.identify({ device: phone, client: "ios" }, "10.0.0.5").client, "ios");
+  assert.equal(access.identify({ device: laptop, client: "web" }, "10.0.0.6").client, "web");
+  // An older client that does not say, or an unknown value, keeps what was known.
+  assert.equal(access.identify({ device: phone }, "10.0.0.5").client, "ios");
+  assert.equal(access.identify({ device: phone, client: "<script>" }, "10.0.0.5").client, "ios");
+  const listed = access.summary().devices;
+  assert.equal(listed.find(device => device.id === laptop).client, "web");
+  assert.equal(clientType("android"), "android");
+  assert.equal(clientType("app-web"), "app-web");
+  assert.equal(clientType("desktop"), null);
+});
+
+test("a nickname change while connected updates the saved device name straight away", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "osc-access-test-"));
+  const access = await createClientAccess(directory);
+  const phone = "a1b2c3d4-0000-4000-8000-000000000005";
+  access.identify({ device: phone, name: "Joe" }, "10.0.0.5");
+  assert.equal(access.rename(phone, "Joe Drums"), "Joe Drums");
+  assert.equal(access.summary().devices.find(device => device.id === phone).name, "Joe Drums");
+  // A cleared or invalid nickname keeps the last good name; unknown devices are ignored.
+  assert.equal(access.rename(phone, null), "Joe Drums");
+  assert.equal(access.rename(phone, "bad\u0007name"), "Joe Drums");
+  assert.equal(access.rename("a1b2c3d4-0000-4000-8000-00000000ffff", "Ghost"), null);
 });

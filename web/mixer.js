@@ -49,7 +49,7 @@ controlsFan.addEventListener("click", event => {
   const button = event.target.closest("button");
   if (button) setControlsOpen(false, button.id !== "editNickname");
 });
-document.getElementById("nicknameDialog").addEventListener("close", () => controlsToggle.focus());
+document.getElementById("nicknameDialog").addEventListener("close", () => { if (phoneControls) controlsToggle.focus(); });
 document.addEventListener("focusin", event => {
   if (controlsOpen && !mixerControls.contains(event.target)) setControlsOpen(false);
 });
@@ -58,6 +58,23 @@ document.addEventListener("keydown", event => {
   if (event.key === "Escape" && controlsOpen) { event.preventDefault(); setControlsOpen(false, true); }
 });
 
+
+// Phones held upright keep the fly-out; phones held sideways, tablets and desktops
+// show the same buttons in the header. The buttons move between the two, so there
+// is only ever one of each.
+const headerActions = document.getElementById("headerActions");
+const phoneQuery = window.matchMedia("(orientation: portrait) and (max-width: 600px)");
+let phoneControls = false;
+function placeControls() {
+  phoneControls = phoneQuery.matches;
+  const target = phoneControls ? controlsFan : headerActions;
+  for (const id of ["panMode", "setAllLevelsOff", "editLayout", "editNickname", "viewToggle"]) target.appendChild(document.getElementById(id));
+  if (!phoneControls) setControlsOpen(false);
+  mixerControls.hidden = !phoneControls;
+  document.body.classList.toggle("phone-controls", phoneControls);
+}
+phoneQuery.addEventListener("change", placeControls);
+placeControls();
 
 function setConnectionStatus(connected) {
   document.body.classList.toggle("connected", connected);
@@ -103,6 +120,8 @@ function updateLevel(slider, level, db = null) {
   slider.style.setProperty("--value", value * 100 + "%");
   const { readout, thumb } = channelElements.get(slider.dataset.channel);
   thumb.style.setProperty("--value", value * 100 + "%");
+  // The landscape track is drawn by the fader's container, so it needs the value too.
+  slider.parentElement?.style.setProperty("--value", value * 100 + "%");
   if (panMode) {
     const offset = Math.round(Math.abs(value * 2 - 1) * 100);
     const position = offset === 0 ? "C" : (value < 0.5 ? "L " : "R ") + offset;
@@ -113,9 +132,9 @@ function updateLevel(slider, level, db = null) {
   }
   const decibels = db === null ? sliderToDb(value) : db;
   const dbText = decibels <= -150 ? "−∞" : String(Number(decibels.toFixed(1)));
-  readout.textContent = valid ? Math.round(value * 100) + "% / " + dbText + " dB" : "—";
+  readout.textContent = valid ? dbText + " dB" : "—";
   readout.title = valid ? "Send level: " + dbText + " dB" : "Waiting for the desk";
-  slider.setAttribute("aria-valuetext", valid ? Math.round(value * 100) + " percent, " + (decibels <= -150 ? "off" : dbText + " decibels") : "Not loaded");
+  slider.setAttribute("aria-valuetext", valid ? (decibels <= -150 ? "off" : dbText + " decibels") : "Not loaded");
 }
 
 function canSetAllLevelsOff() {
@@ -186,10 +205,13 @@ function bindFaderHandle(slider, thumb) {
   }
   thumb.addEventListener("pointerdown", event => {
     if (drag || event.button !== 0 || slider.disabled) return;
-    const travel = slider.getBoundingClientRect().width - thumb.getBoundingClientRect().width;
+    // Landscape strips run their faders upward; everywhere else they run left to right.
+    const vertical = isLandscapeStrips();
+    const track = slider.getBoundingClientRect(), handle = thumb.getBoundingClientRect();
+    const travel = vertical ? track.height - handle.height : track.width - handle.width;
     if (travel <= 0) return;
     // Preserve the grab offset: touching either edge of the handle must not jump.
-    drag = { pointerId: event.pointerId, x: event.clientX, value: Number(slider.value),
+    drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, vertical, value: Number(slider.value),
       travel, aux: auxSelect.value, parameter: sendParameter(), moved: false };
     event.preventDefault();
     slider.classList.toggle("pointer-focused", true);
@@ -203,7 +225,7 @@ function bindFaderHandle(slider, thumb) {
       cancelDrag();
       return;
     }
-    const delta = event.clientX - drag.x;
+    const delta = drag.vertical ? drag.y - event.clientY : event.clientX - drag.x;
     // Ignore the small finger movement that can accompany a tap.
     if (!drag.moved && Math.abs(delta) < 3) return;
     drag.moved = true;
@@ -269,8 +291,9 @@ function requestValues({ preserveValues = false } = {}) {
 }
 
 function updateEmptyChannels() {
-  emptyChannels.hidden = channelsDiv.children.length > 0 || editingLayout;
-  emptyChannels.textContent = "No channels configured for this mixer.";
+  const shown = Array.from(channelElements.values()).filter(({ row }) => !row.classList.contains("is-hidden")).length;
+  emptyChannels.hidden = shown > 0 || editingLayout;
+  emptyChannels.textContent = channelsDiv.children.length ? "All channels are hidden. Use Edit layout to show them." : "No channels configured for this mixer.";
 }
 
 function onMessage(event) {
@@ -339,17 +362,31 @@ function buildAux(options) {
   else requestValues();
 }
 
+// A channel colour from the server, softened a little toward its own grey so
+// the fill and edge strip match the mobile app rather than the exact hex.
+function softChannelColour(colour) {
+  const match = /^#([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(typeof colour === "string" ? colour : "");
+  if (!match) return "";
+  const [r, g, b] = match.slice(1).map(value => parseInt(value, 16));
+  const grey = 0.299 * r + 0.587 * g + 0.114 * b;
+  return [r, g, b].map(value => Math.round(value + (grey - value) * 0.15)).join(", ");
+}
 function buildChannels(channels) {
+  // Where 0 dB sits on every level fader, for the unity marker.
+  channelsDiv.style.setProperty("--unity", String(dbToSlider(0)));
   channels = channels.filter(channel => channel.enabled !== false).sort((a, b) => (a.order ?? a.channel) - (b.order ?? b.channel));
   if (channelSorter) channelSorter.destroy();
   clearPendingWrites();
   channelElements.clear();
   channelsDiv.replaceChildren();
+  const hidden = hiddenChannels();
   for (const channel of channels) {
     const row = document.createElement("div");
     row.className = "channel-card";
     row.dataset.channel = String(channel.channel);
-    row.innerHTML = '<button type="button" class="drag-handle" title="Drag to reorder">' + appIcon("gripVertical") + '</button><div class="channel-header"><span class="channel-name"></span><div class="fader-control"><input class="fader volumeInput" type="range" min="0" max="1" step="0.001" value="0" disabled><span class="fader-thumb" aria-hidden="true"></span></div><output class="level-readout">—</output></div>';
+    const colour = softChannelColour(channel.colour);
+    if (colour) { row.classList.add("has-colour"); row.style.setProperty("--tint", colour); }
+    row.innerHTML = '<button type="button" class="drag-handle" title="Drag to reorder">' + appIcon("gripVertical") + '</button><div class="channel-header"><span class="channel-name"></span><div class="fader-control"><span class="unity-mark" aria-hidden="true"></span><input class="fader volumeInput" type="range" min="0" max="1" step="0.001" value="0" disabled><span class="fader-thumb" aria-hidden="true"></span></div><output class="level-readout">—</output></div><button type="button" class="visibility-toggle"></button>';
     const name = channel.label || "Channel " + channel.channel;
     row.querySelector(".channel-name").textContent = name;
     row.querySelector(".channel-name").title = name;
@@ -364,13 +401,18 @@ function buildChannels(channels) {
     const handle = row.querySelector(".drag-handle");
     handle.setAttribute("aria-label", "Move " + name);
     handle.addEventListener("keydown", moveChannelWithKeys);
-    channelElements.set(String(channel.channel), { row, slider, thumb, cancelDrag, handle, name: row.querySelector(".channel-name"), readout: row.querySelector(".level-readout") });
+    const visibility = row.querySelector(".visibility-toggle");
+    const controls = { row, slider, thumb, cancelDrag, handle, visibility, name: row.querySelector(".channel-name"), readout: row.querySelector(".level-readout") };
+    showChannelHidden(controls, hidden.has(String(channel.channel)));
+    visibility.addEventListener("click", () => { setChannelHidden(controls, !row.classList.contains("is-hidden")); updateEmptyChannels(); });
+    channelElements.set(String(channel.channel), controls);
     channelsDiv.appendChild(row);
   }
   restoreChannelOrder();
   channelSorter = new Sortable(channelsDiv, {
     disabled: !editingLayout, draggable: "> .channel-card", handle: ".drag-handle", direction: () => isGridLayout() ? "horizontal" : "vertical",
     animation: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 180,
+    filter: ".visibility-toggle", preventOnFilter: false,
     ghostClass: "layout-placeholder", chosenClass: "layout-chosen", dragClass: "layout-drag",
     forceFallback: true, fallbackOnBody: true, fallbackTolerance: 4,
     scroll: document.getElementById("channelsWrap"), forceAutoScrollFallback: true, scrollSensitivity: 70, scrollSpeed: 12,
@@ -379,6 +421,24 @@ function buildChannels(channels) {
   updateSortingMode();
   updateLayoutInputs();
   updateEmptyChannels();
+}
+
+// Channels this device has hidden, like the mobile app's Channels list. Hidden
+// channels stay in the layout editor, dimmed, so they can be shown again.
+function hiddenChannels() {
+  try { const saved = JSON.parse(localStorage.getItem("hiddenChannels") || "[]"); return new Set(Array.isArray(saved) ? saved.map(String) : []); } catch { return new Set(); }
+}
+function setChannelHidden(controls, hidden) {
+  const ids = hiddenChannels();
+  if (hidden) ids.add(controls.slider.dataset.channel); else ids.delete(controls.slider.dataset.channel);
+  localStorage.setItem("hiddenChannels", JSON.stringify(Array.from(ids)));
+  showChannelHidden(controls, hidden);
+}
+function showChannelHidden({ row, visibility, name }, hidden) {
+  row.classList.toggle("is-hidden", hidden);
+  visibility.setAttribute("aria-pressed", String(!hidden));
+  visibility.setAttribute("aria-label", (hidden ? "Show " : "Hide ") + name.textContent);
+  visibility.innerHTML = appIcon(hidden ? "eyeOff" : "eye");
 }
 
 function restoreChannelOrder() {
@@ -452,7 +512,7 @@ function setEditingLayout(active) {
 editLayoutButton.addEventListener("click", () => setEditingLayout(!editingLayout));
 doneLayoutButton.addEventListener("click", () => {
   if (editingLayout) setEditingLayout(false);
-  controlsToggle.focus();
+  (phoneControls ? controlsToggle : editLayoutButton).focus();
 });
 
 // Connection PIN: shown when the server asks for it, then the connection resumes.
@@ -546,13 +606,24 @@ listViewButton.addEventListener("click", () => { localStorage.setItem("channelVi
 gridViewButton.addEventListener("click", () => { localStorage.setItem("channelView", "grid"); setChannelView("grid"); });
 setChannelView(localStorage.getItem("channelView") || "list");
 
+// Phones and tablets held sideways show channels as vertical strips, like the
+// mobile app. Only touch screens switch, so a wide desktop window keeps its list
+// or grid. The layout editor keeps the usual list so handles and eyes stay easy to reach.
+const landscapeQuery = window.matchMedia("(orientation: landscape) and (pointer: coarse)");
+function updateLandscape() { document.body.classList.toggle("landscape", landscapeQuery.matches); }
+landscapeQuery.addEventListener("change", updateLandscape);
+updateLandscape();
+function isLandscapeStrips() {
+  return document.body.classList.contains("landscape") && !editingLayout;
+}
+
 function isGridLayout() {
   return document.body.classList.contains("grid-view") && window.matchMedia("(min-width: 700px)").matches;
 }
 function updateSortingMode() {
   if (channelSorter) channelSorter.option("handle", isGridLayout() ? null : ".drag-handle");
   layoutHint.textContent = isGridLayout()
-    ? "Drag cards to reorder."
-    : "Drag a handle to reorder.";
+    ? "Drag cards to reorder. Use the eye to hide or show a channel."
+    : "Drag a handle to reorder. Use the eye to hide or show a channel.";
 }
 window.matchMedia("(min-width: 700px)").addEventListener("change", updateSortingMode);

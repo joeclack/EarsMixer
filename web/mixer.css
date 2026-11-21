@@ -18,7 +18,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .mix-choice > span { font-size: 12px; color: #a8afb9; white-space: nowrap; }
 #aux { appearance: auto; min-width: 0; max-width: 210px; padding: 9px 10px; color: #f3f4f6; background: #272c34; border: 1px solid #444b57; border-radius: 8px; font-size: 14px; font-weight: 600; }
 #aux option { background: #272c34; color: #f3f4f6; }
-.mixer-status { color: #a8afb9; font-size: 12px; min-width: 0; }
+.mixer-status { flex: 1 1 auto; color: #a8afb9; font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .disconnected .mixer-status { color: #edbd80; }
 button:disabled { opacity: 0.5; cursor: default; }
 #editLayout[aria-pressed="true"] { background: #e7edf6; color: #171c24; border-color: #e7edf6; }
@@ -26,9 +26,15 @@ button:disabled { opacity: 0.5; cursor: default; }
 .layout-editor strong { font-size: 14px; }
 #layoutHint { margin: 3px 0 0; color: #b9c4d6; font-size: 12px; line-height: 1.5; }
 #doneLayout { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 10px 16px; border: 1px solid #e7edf6; border-radius: 8px; background: #e7edf6; color: #171c24; font-size: 14px; font-weight: 600; flex: 0 0 auto; }
-#channelsWrap { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; padding: 12px max(12px, env(safe-area-inset-right)) calc(88px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
-#channels { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px; }
-.channel-card { position: relative; min-width: 0; padding: 9px 12px 6px; border: 1px solid #30353e; border-radius: 10px; background: #1c2026; }
+#channelsWrap { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; padding: 0 0 calc(16px + env(safe-area-inset-bottom)); }
+/* Like the mobile app, faders sit straight on the desk as one panel, divided by fine lines rather than floating as cards. */
+#channels { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 1px; background: #262b33; border-bottom: 1px solid #262b33; }
+/* Wider than the panel, its sides get the same fine line so it still reads as one desk. */
+@media (min-width: 901px) { #channels { border-inline: 1px solid #262b33; } }
+.channel-card { position: relative; min-width: 0; padding: 12px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left)); background: #101215; }
+/* A channel's colour fills its fader and runs as a softly shaded strip down the row's left edge. */
+.channel-card.has-colour::before { content: ""; position: absolute; top: 14px; bottom: 14px; left: 0; width: 6px; border-radius: 0 3px 3px 0; pointer-events: none;
+  background: linear-gradient(to bottom, color-mix(in srgb, rgb(var(--tint)) 72%, white), rgb(var(--tint)), color-mix(in srgb, rgb(var(--tint)) 78%, black)); }
 .channel-header { display: grid; grid-template-columns: minmax(0, 1fr) max-content; align-items: center; column-gap: 10px; min-width: 0; }
 .channel-name { grid-column: 1; grid-row: 1; font-size: 15px; font-weight: 550; color: #ecf0f6; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .level-readout { grid-column: 2; grid-row: 1; font-size: 12px; font-variant-numeric: tabular-nums; color: #aeb7c5; min-width: 38px; text-align: right; white-space: nowrap; }
@@ -43,17 +49,28 @@ button:disabled { opacity: 0.5; cursor: default; }
 .fader::-moz-range-thumb { box-sizing: border-box; width: 28px; height: 28px; background: transparent; border: 0; }
 .fader-thumb { position: absolute; top: 50%; left: var(--value, 0%); transform: translate(calc(-1 * var(--value, 0%)), -50%); width: 28px; height: 28px; border-radius: 8px; background: #eef2f8; border: 2px solid #8e99ab; box-shadow: 0 2px 6px #0005; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
 .fader-thumb.dragging { cursor: grabbing; }
+/* A fine tick across the track at 0 dB, lined up with the handle's centre at unity. */
+.unity-mark { position: absolute; top: 50%; left: calc(var(--unity, 0.75) * (100% - 28px) + 14px); width: 2px; height: 20px; transform: translate(-50%, -50%); border-radius: 1px; background: #8e99ab; pointer-events: none; }
+.pan-mode .unity-mark { display: none; }
 .fader-thumb.is-disabled { opacity: 0.45; pointer-events: none; }
 .fader:disabled { opacity: 0.45; cursor: default; }
 .drag-handle { display: none; }
-.editing-layout .channel-card, .layout-drag { padding: 8px 12px; }
+.editing-layout .channel-card { padding: 8px 16px; }
+.layout-drag { padding: 8px 12px; border-radius: 10px; }
 .editing-layout .channel-header { display: flex; min-height: 40px; }
 .editing-layout .fader-control, .editing-layout .level-readout { display: none; }
 .editing-layout .drag-handle, .layout-drag .drag-handle { display: inline-flex; justify-content: center; align-items: center; flex: 0 0 40px; width: 40px; height: 40px; margin-right: 8px; padding: 0; border: 1px solid #414b59; border-radius: 7px; background: #282e38; color: #b1bdce; cursor: grab; touch-action: none; }
 .editing-layout .channel-card { display: flex; align-items: center; }
 .editing-layout .channel-header { flex: 1; min-width: 0; }
+/* Hidden channels leave the mixer, and stay dimmed in the layout editor with an eye to show them again. */
+.visibility-toggle { display: none; }
+.editing-layout .visibility-toggle { display: inline-flex; justify-content: center; align-items: center; flex: 0 0 40px; width: 40px; height: 40px; margin-left: 8px; padding: 0; border: 1px solid #414b59; border-radius: 7px; background: #282e38; color: #b1bdce; cursor: pointer; }
+body:not(.editing-layout) .channel-card.is-hidden { display: none; }
+.editing-layout .channel-card.is-hidden .channel-header { opacity: 0.45; }
+.editing-layout .channel-card.is-hidden .visibility-toggle { color: #7d8696; }
+.layout-drag .visibility-toggle { display: inline-flex; justify-content: center; align-items: center; width: 40px; height: 40px; margin-left: 8px; border: 1px solid #414b59; border-radius: 7px; background: #282e38; color: #b1bdce; }
 .layout-placeholder { opacity: 0.25; }
-.layout-chosen { border-color: #8795ab; }
+.layout-chosen { background: #1c2026; }
 .layout-drag { display: flex; align-items: center; background: #282e38; box-shadow: 0 12px 30px #0008; border: 1px solid #8795ab; }
 .layout-drag .channel-header { display: flex; flex: 1; }
 .layout-drag .fader-control, .layout-drag .level-readout { display: none; }
@@ -61,12 +78,12 @@ button:disabled { opacity: 0.5; cursor: default; }
 @media (max-width: 600px) { #mix { gap: 10px; padding-inline: 12px; } .mixer-header-controls { gap: 8px; } .mix-choice > span { display: none; } #aux { max-width: 32vw; } }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 
-.view-toggle { display: none; align-items: center; gap: 2px; padding: 3px; background: #191d24; border: 1px solid #3a404b; border-radius: 12px; }
-.view-toggle button { display: flex; align-items: center; justify-content: center; min-width: 44px; height: 44px; border: 0; border-radius: 8px; color: #aeb7c5; background: transparent; }
+.view-toggle { display: none; align-items: center; gap: 2px; padding: 2px; background: #191d24; border: 1px solid #3a404b; border-radius: 10px; }
+.view-toggle button { display: flex; align-items: center; justify-content: center; min-width: 36px; height: 34px; border: 0; border-radius: 8px; color: #aeb7c5; background: transparent; }
 .view-toggle button[aria-pressed="true"] { color: #fff; background: #3a4352; }
 @media (min-width: 700px) {
   .view-toggle { display: inline-flex; }
-  body.grid-view #channels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 1440px; gap: 12px; }
+  body.grid-view #channels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 1440px; gap: 1px; }
 }
 @media (min-width: 1100px) {
   body.grid-view #channels { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -79,6 +96,18 @@ button:disabled { opacity: 0.5; cursor: default; }
   .grid-view.editing-layout .layout-drag { min-height: 92px; padding: 16px 12px; }
 }
 
+/* Mixer controls sit in the header as separate buttons; narrow screens show icons only. */
+.header-actions { display: flex; align-items: center; gap: 6px; }
+.header-actions .header-action { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 40px; height: 40px; padding: 0 12px; border: 1px solid #444b57; border-radius: 8px; background: #272c34; color: #e0e7f2; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.header-actions .header-action .app-icon { width: 18px; height: 18px; flex-shrink: 0; }
+.header-actions .header-action strong { font-size: 16px; font-weight: 600; line-height: 1; }
+.header-actions .header-action:not(:disabled):hover { border-color: #a5c5ff; background: #303846; }
+.header-actions .header-action[aria-pressed="true"] { background: #405575; border-color: #a5c5ff; color: #fff; }
+.header-danger strong { color: #ff8a8a; }
+#nicknameLabel { max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 900px) { .header-actions .header-action span { display: none; } .header-actions .header-action { padding: 0 10px; } }
+.header-actions:empty { display: none; }
+/* Phones: the controls fan out from a floating button, leaving the header to the mix choice. */
 .mixer-controls { position: fixed; z-index: 20; left: max(16px, env(safe-area-inset-left)); bottom: max(16px, env(safe-area-inset-bottom)); width: 52px; height: 52px; }
 .controls-backdrop { position: fixed; inset: 0; background: #05080d99; touch-action: none; }
 .controls-toggle { position: relative; z-index: 1; display: grid; place-items: center; width: 52px; height: 52px; padding: 0; border: 1px solid #687d9b; border-radius: 50%; background: #344761; color: #f2f6ff; box-shadow: 0 4px 20px #0008; }
@@ -104,6 +133,8 @@ button:disabled { opacity: 0.5; cursor: default; }
 .controls-fan #panMode[aria-pressed="true"] { background: #405575; border-color: #a5c5ff; color: #fff; }
 @media (max-height: 320px) { .mixer-controls { bottom: max(8px, env(safe-area-inset-bottom)); } }
 @media (prefers-reduced-motion: reduce) { .controls-fan, .controls-fan .fan-action, .controls-fan .view-toggle, .controls-toggle .app-icon { transition: none; } }
+.controls-fan .fan-off strong { color: #ff8a8a; }
+body.phone-controls #channelsWrap { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
 .settings-dialog { width: min(440px, calc(100vw - 24px)); max-width: calc(100vw - 24px); max-height: calc(100dvh - 32px); margin: auto; padding: 20px; border: 1px solid #444d5d; border-radius: 12px; background: #191d24; color: #eef0f3; overflow-y: auto; overflow-x: hidden; }
 .settings-dialog::backdrop { background: #000a; }
 .settings-dialog-header { display: flex; align-items: flex-start; gap: 12px; }
@@ -124,3 +155,26 @@ button:disabled { opacity: 0.5; cursor: default; }
 /* A centre mark keeps left/right pan distinct from send levels. */
 .pan-mode .fader::-webkit-slider-runnable-track { background: linear-gradient(to right, #373e49 calc(50% - 1px), #aeb7c5 calc(50% - 1px), #aeb7c5 calc(50% + 1px), #373e49 calc(50% + 1px)); }
 .pan-mode .fader::-moz-range-track { background: linear-gradient(to right, #373e49 calc(50% - 1px), #aeb7c5 calc(50% - 1px), #aeb7c5 calc(50% + 1px), #373e49 calc(50% + 1px)); }
+
+/* Landscape phones: channels become vertical strips side by side, scrolled
+   sideways, like the mobile app. The layout editor keeps the usual list. */
+body.landscape #mix { padding-top: 6px; padding-bottom: 6px; }
+body.landscape:not(.editing-layout) #channelsWrap { overflow-x: auto; overflow-y: hidden; padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left); }
+body.landscape:not(.editing-layout) #channels { display: flex; flex-direction: row; width: max-content; min-width: 100%; max-width: none; height: 100%; margin: 0; border: 0; }
+body.landscape:not(.editing-layout) .channel-card { display: flex; flex: 0 0 96px; height: 100%; padding: 14px 8px 10px; }
+body.landscape:not(.editing-layout) .channel-header { display: flex; flex: 1 1 auto; flex-direction: column; align-items: center; gap: 8px; min-height: 0; }
+body.landscape:not(.editing-layout) .level-readout { order: 0; min-width: 0; text-align: center; }
+body.landscape:not(.editing-layout) .fader-control { order: 1; flex: 1 1 auto; width: 44px; min-height: 0; touch-action: pan-x; }
+body.landscape:not(.editing-layout) .channel-name { order: 2; flex: 0 0 auto; width: 100%; font-size: 12px; text-align: center; }
+/* The native slider stays for keyboard and screen readers; the container draws the upright track. */
+body.landscape:not(.editing-layout) .fader { position: absolute; inset: 0; height: 100%; opacity: 0; }
+body.landscape:not(.editing-layout) .fader-control:has(.fader:focus-visible:not(.pointer-focused)) { outline: 2px solid #a5c5ff; outline-offset: 3px; border-radius: 6px; }
+body.landscape:not(.editing-layout) .fader-control::before { content: ""; position: absolute; top: 14px; bottom: 14px; left: 50%; width: 7px; transform: translateX(-50%); border-radius: 5px; pointer-events: none;
+  background: linear-gradient(to top, rgb(var(--tint)) 0%, rgb(var(--tint)) var(--value, 0%), #373e49 var(--value, 0%), #373e49 100%); }
+body.landscape.pan-mode:not(.editing-layout) .fader-control::before { background: linear-gradient(to top, #373e49 calc(50% - 1px), #aeb7c5 calc(50% - 1px), #aeb7c5 calc(50% + 1px), #373e49 calc(50% + 1px)); }
+body.landscape:not(.editing-layout) .fader-thumb { top: auto; left: 50%; bottom: var(--value, 0%); transform: translate(-50%, var(--value, 0%)); }
+body.landscape:not(.editing-layout) .unity-mark { top: auto; left: 50%; bottom: calc(var(--unity, 0.75) * (100% - 28px) + 14px); width: 20px; height: 2px; transform: translate(-50%, 50%); }
+/* The channel colour hangs from the top edge as a short band, as in the app's landscape strips. */
+body.landscape:not(.editing-layout) .channel-card.has-colour::before { top: 0; bottom: auto; left: 14px; right: 14px; width: auto; height: 6px; border-radius: 0 0 3px 3px; }
+/* Landscape always shows strips, so the list/grid switch has nothing to change there. */
+body.landscape .view-toggle { display: none; }

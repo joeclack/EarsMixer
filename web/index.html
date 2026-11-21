@@ -63,21 +63,25 @@
   <body class="disconnected">
     <header id="mix">
       <span id="mixerStatus" class="mixer-status" role="status" aria-live="polite">Connecting…</span>
-      <div class="mixer-header-controls"><label class="mix-choice"><span>Your mix</span><select id="aux" aria-label="Your AUX mix" disabled></select></label></div>
+      <div class="mixer-header-controls">
+        <div id="headerActions" class="header-actions" role="group" aria-label="Mixer controls">
+          <button id="panMode" class="header-action fan-action fan-pan" type="button" aria-pressed="false" title="Pan mode"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#moveHorizontal"></use></svg><span>Pan</span></button>
+          <button id="setAllLevelsOff" class="header-action header-danger fan-action fan-off" type="button" disabled aria-label="Set all levels to off" title="Set every channel in this AUX mix to off (−∞ dB)"><strong aria-hidden="true">−∞</strong><span>All off</span></button>
+          <button id="editLayout" class="header-action fan-action fan-edit" type="button" aria-pressed="false" disabled><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#pencil"></use></svg><span>Edit layout</span></button>
+          <button id="editNickname" class="header-action fan-action fan-nickname" type="button" title="Nickname" aria-label="Set nickname"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#userRound"></use></svg><span id="nicknameLabel">Nickname</span></button>
+          <div id="viewToggle" class="view-toggle" role="group" aria-label="Channel view">
+            <button id="listView" type="button" aria-label="List view" title="List view" aria-pressed="true"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#list"></use></svg></button>
+            <button id="gridView" type="button" aria-label="Grid view" title="Grid view" aria-pressed="false"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#grid2x2"></use></svg></button>
+          </div>
+        </div>
+        <label class="mix-choice"><span>Your mix</span><select id="aux" aria-label="Your AUX mix" disabled></select></label>
+      </div>
     </header>
-    <div id="mixerControls" class="mixer-controls">
+    <!-- Phones keep the floating controls button; the header's buttons move into its fly-out. -->
+    <div id="mixerControls" class="mixer-controls" hidden>
       <div id="controlsBackdrop" class="controls-backdrop" hidden></div>
       <button id="controlsToggle" class="controls-toggle" type="button" aria-expanded="false" aria-controls="controlsFan" aria-label="Open mixer controls" title="Mixer controls"><svg class="app-icon controls-open-icon" aria-hidden="true"><use href="vendor/lucide.svg#slidersHorizontal"></use></svg><svg class="app-icon controls-close-icon" aria-hidden="true"><use href="vendor/lucide.svg#x"></use></svg></button>
-      <div id="controlsFan" class="controls-fan" role="group" aria-label="Mixer controls" inert>
-        <button id="setAllLevelsOff" class="fan-action fan-off" type="button" disabled title="Set every channel in this AUX mix to off (−∞ dB)"><strong>−∞</strong><span>Set all levels to off</span></button>
-        <button id="editLayout" class="fan-action fan-edit" type="button" aria-pressed="false" disabled><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#pencil"></use></svg><span>Edit layout</span></button>
-        <button id="panMode" class="fan-action fan-pan" type="button" aria-pressed="false"><strong>Pan</strong></button>
-        <button id="editNickname" class="fan-action fan-nickname" type="button" title="Nickname" aria-label="Set nickname"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#userRound"></use></svg><span id="nicknameLabel">Nickname</span></button>
-        <div class="view-toggle" role="group" aria-label="Channel view">
-          <button id="listView" type="button" aria-label="List view" title="List view" aria-pressed="true"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#list"></use></svg></button>
-          <button id="gridView" type="button" aria-label="Grid view" title="Grid view" aria-pressed="false"><svg class="app-icon" aria-hidden="true"><use href="vendor/lucide.svg#grid2x2"></use></svg></button>
-        </div>
-      </div>
+      <div id="controlsFan" class="controls-fan" role="group" aria-label="Mixer controls" inert></div>
     </div>
     <div id="layoutEditor" class="layout-editor" role="region" aria-label="Layout editing" hidden>
       <div><strong>Editing layout</strong><p id="layoutHint">Drag to reorder.</p></div>

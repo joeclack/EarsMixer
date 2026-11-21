@@ -21,6 +21,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var checkingUpdates = false
     @Published private(set) var notice: String?
     @Published private(set) var openAtLogin = false
+    /// Demo mode runs the server against a built-in demo desk. It is not remembered,
+    /// so the app always starts with the real desk.
+    @Published private(set) var demoMode = false
 
     private var pollTimer: Timer?
     private var updateTimer: Timer?
@@ -109,6 +112,17 @@ final class AppModel: ObservableObject {
     }
 
     func restartServer() { Task { @MainActor [weak self] in await self?.server.restart() } }
+
+    /// Switches between the real desk and the demo desk by restarting the server.
+    func setDemoMode(_ on: Bool) {
+        guard on != demoMode else { return }
+        demoMode = on
+        server.demo = on
+        clearStatus()
+        notice = on ? "Demo mode: phones connect to a built-in demo desk. Your desk settings are unchanged."
+                    : "Demo mode off. Using your desk settings."
+        Task { @MainActor [weak self] in await self?.server.restart() }
+    }
 
     func openPage(_ path: String) {
         NSWorkspace.shared.open(path.isEmpty ? localURL() : localURL().appendingPathComponent(path))

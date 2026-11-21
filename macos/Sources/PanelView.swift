@@ -11,6 +11,7 @@ struct PanelView: View {
             header
             Divider()
             serverRow
+            demoRow
             if model.server.isRunning {
                 statusRows
                 connection
@@ -91,11 +92,29 @@ struct PanelView: View {
         }
     }
 
+    private var demoRow: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Demo Mode")
+                Text("Try EarsMixer without a desk. Phones connect as usual.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            Toggle("Demo Mode", isOn: Binding(
+                get: { model.demoMode },
+                set: { model.setDemoMode($0) }))
+                .toggleStyle(.switch)
+                .labelsHidden()
+        }
+    }
+
     private var serverText: String {
         switch model.serverState {
         case .stopped: return "Stopped"
         case .starting: return "Starting..."
-        case .running: return "Running"
+        case .running: return model.demoMode ? "Running (demo)" : "Running"
         case .failed(let message): return message
         }
     }
@@ -118,6 +137,7 @@ struct PanelView: View {
 
     private var deskText: String {
         guard let connected = model.deskConnected else { return "—" }
+        if model.demoMode { return connected ? "Demo desk" : "Demo desk starting..." }
         let address = model.deskAddress.isEmpty ? "" : " (\(model.deskAddress))"
         return (connected ? "Connected" : "Not answering") + address
     }

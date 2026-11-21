@@ -50,6 +50,8 @@ final class Server {
     private var recentCrashes: [Date] = []
 
     var isRunning: Bool { state == .running || state == .starting }
+    /// Run against the built-in demo desk (see lib/demo-mode.js). Applies the next time the server starts.
+    var demo = false
 
     func start() {
         guard process == nil else { return }
@@ -61,13 +63,14 @@ final class Server {
             }
             let handle = try FileHandle(forWritingTo: Paths.log)
             handle.seekToEndOfFile()
-            handle.write("\n--- Started \(Date()) (EarsMixer \(ProductInfo.version)) ---\n".data(using: .utf8)!)
+            handle.write("\n--- Started \(Date()) (EarsMixer \(ProductInfo.version)\(demo ? ", demo mode" : "")) ---\n".data(using: .utf8)!)
 
             let child = Process()
             child.executableURL = Paths.serverBinary
             var environment = ProcessInfo.processInfo.environment
             environment["OSC_WEBMIXER_HOME"] = Paths.home.path
             environment["OSC_WEBMIXER_SERVICE"] = "1"
+            if demo { environment["OSC_WEBMIXER_DEMO"] = "1" } else { environment.removeValue(forKey: "OSC_WEBMIXER_DEMO") }
             child.environment = environment
             child.currentDirectoryURL = Paths.home
             child.standardOutput = handle

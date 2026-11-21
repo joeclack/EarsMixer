@@ -14,4 +14,8 @@ process.env.OSC_WEBMIXER_DATA_DIR ||= path.join(root, "data");
 process.chdir(root);
 console.log("EarsMixer");
 console.log("Settings and plugins: " + root);
-require("../index.js");
+// The menu bar app sets OSC_WEBMIXER_DEMO=1 for demo mode (see lib/demo-mode.js).
+require("../lib/demo-mode.js").launch(root, () => require("../index.js")).catch(error => {
+    console.error("Could not start demo mode: " + (error && error.message ? error.message : error));
+    process.exit(1);
+});

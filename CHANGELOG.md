@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 1.15.0 — 2026-11-21
+
+Product version: **1.15.0**. Node package version: **2.17.0**.
+
+- Demo mode in the macOS menu bar app and the Windows tray: try EarsMixer without a desk. The server restarts against a built-in demo desk (20 channels, 8 AUX mixes) and phones connect to it as usual, by QR code, link or discovery, where it appears as "EarsMixer Demo". The demo keeps its own settings and data, so the real desk address, connection PIN, admin password and layouts are untouched. On macOS it's a switch in the panel and is off again at next launch; on Windows it's a tray menu item and lasts until turned off.
+- The demo desk used by `npm run dev` is now `lib/demo-desk.js`, shared with demo mode. `tools/mock-desk.js` keeps its flags and output.
+
 ## 1.14.4 — 2026-11-20
 
 Product version: **1.14.4**. Node package version: **2.16.4**.

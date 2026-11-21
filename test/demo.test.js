@@ -97,7 +97,8 @@ test("offline v2: discovery, scoped clients, dashboard, templates, admin session
     const first = await connect(publicBase.replace("http:", "ws:")); clients.push(first);
     const second = await connect(base.replace("http:", "ws:")); clients.push(second);
     const localStatus = await fetch(base + "/api/local/status");
-    assert.deepEqual(await localStatus.json(), { desk: { connected: true, address: "127.0.0.1" }, devices: 2 });
+    // The development demo is not the packaged demo mode, so demo is false.
+    assert.deepEqual(await localStatus.json(), { desk: { connected: true, address: "127.0.0.1" }, devices: 2, demo: false });
     assert.equal((await fetch(base + "/api/local/status", { headers: browserHeaders })).status, 404);
     assert.equal((await fetch(publicBase + "/api/local/status")).status, 404);
     assert.equal(first.config.channels.length, 20);

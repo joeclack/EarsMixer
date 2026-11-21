@@ -12,4 +12,8 @@ console.log("EarsMixer");
 console.log("Settings and plugins: " + root);
 console.log("Open http://localhost/admin (include the port if you change it in Desk settings).");
 if (!process.env.OSC_WEBMIXER_SERVICE) console.log("Keep this window open while using the mixer. Press Ctrl+C to stop.\n");
-require("../index.js");
+// The tray creates <home>\demo-mode for demo mode (see lib/demo-mode.js).
+require("../lib/demo-mode.js").launch(root, () => require("../index.js")).catch(error => {
+    console.error("Could not start demo mode: " + (error && error.message ? error.message : error));
+    process.exit(1);
+});

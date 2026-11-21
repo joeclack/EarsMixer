@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 1.17.0 — 2026-11-21
+
+Product version: **1.17.0**. Node package version: **2.19.0**.
+
+- The macOS disk image opens as an installer window: a background with an arrow and "Drag EarsMixer onto the Applications folder", with EarsMixer on the left and the Applications folder on the right.
+- If EarsMixer is opened from the disk image, a temporary location or Downloads, it offers to move itself to Applications before starting the server. It quits any other running copy, replaces an older copy (sending it to the Trash), reopens from Applications and ejects the disk image. Updates can't be installed while it runs from the disk image.
+
 ## 1.16.1 — 2026-11-21
 
 Product version: **1.16.1**. Node package version: **2.18.1**.

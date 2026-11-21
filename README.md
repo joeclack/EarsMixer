@@ -37,7 +37,7 @@ To try EarsMixer without a desk, right-click the tray icon and choose **Demo mod
 
 Requires macOS 13 or later, on Apple silicon or Intel.
 
-1. Download `EarsMixer-<version>-macos.dmg` from [Releases](https://github.com/joeclack/EarsMixer/releases/latest), open it and drag EarsMixer to Applications.
+1. Download `EarsMixer-<version>-macos.dmg` from [Releases](https://github.com/joeclack/EarsMixer/releases/latest) and open it. In the window that appears, drag EarsMixer onto the Applications folder, then eject the disk. If EarsMixer is opened from the disk image or Downloads instead, it offers to move itself to Applications.
 2. Open EarsMixer from Applications. Release builds are signed and notarised by Apple, so macOS opens them without a warning.
 3. Allow incoming connections and local network access when macOS asks.
 4. EarsMixer runs from the menu bar. Click its icon for a panel with the server switch, desk and device status, the mixer QR code and links to the admin dashboard and mixer. **Open at Login**, logs and updates are under the gear button.
@@ -65,9 +65,9 @@ For a console-connected source deployment, configure the server and run `npm sta
 
 - `npm run build` regenerates the browser assets.
 - `npm run installer:windows` builds the Windows installer into `dist/`; requires Inno Setup 6.7+ and the Windows .NET Framework C# compiler.
-- `npm run installer:macos` builds the macOS dmg into `dist/`; run it on a Mac with the Xcode command line tools.
+- `npm run installer:macos` builds the macOS dmg into `dist/`; run it on a Mac with the Xcode command line tools and Python 3.9 or later. The disk image window (background with a drag-to-Applications arrow, icon positions) is made with [dmgbuild](https://github.com/dmgbuild/dmgbuild), installed with pinned hashes from [macos/dmg-requirements.txt](macos/dmg-requirements.txt) into `dist/dmgbuild-venv`. The background is drawn by [macos/dmg-background.swift](macos/dmg-background.swift) and the layout is in [macos/dmg-settings.py](macos/dmg-settings.py).
 - GitHub Actions builds release installers from `main`; feature branches remain unpublished until merged. Product metadata and the release tag version come from [installer/version.inc.iss](installer/version.inc.iss).
-- Product version (Windows and macOS): **1.16.1**. Node package version: **2.18.1**, maintained in its separate upstream series.
+- Product version (Windows and macOS): **1.17.0**. Node package version: **2.19.0**, maintained in its separate upstream series.
 
 ### Signing the macOS app
 

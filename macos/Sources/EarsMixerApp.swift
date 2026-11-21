@@ -10,6 +10,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let popover = NSPopover()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Opened from the disk image or Downloads: offer to move to Applications first.
+        if MoveToApplications.offerIfNeeded() { return }
         let model = AppModel.shared
         model.start()
 

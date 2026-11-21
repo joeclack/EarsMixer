@@ -27,7 +27,7 @@ function setAccessToken(token) {
 // Sent first on every connection; the server asks for the PIN if it is needed.
 function sendClientAuth(socket) {
   if (socket && socket.readyState === WebSocket.OPEN)
-    socket.send(JSON.stringify({ auth: { device: getDeviceId(), token: getAccessToken(), name: getDeviceNickname() } }));
+    socket.send(JSON.stringify({ auth: { device: getDeviceId(), token: getAccessToken(), name: getDeviceNickname(), client: "web" } }));
 }
 function sendDeviceNickname(socket) {
   // Keep the existing wire field so web and native clients share the same presence protocol.

@@ -3,6 +3,11 @@ import { useAction } from "../hooks.js";
 import { activity, ago, changeText, clock } from "../format.mjs";
 import { AuxLabel, Button, Empty, Message, Panel, Table, Tag } from "../ui.jsx";
 
+// What kind of client a device connected with, as it told the server. Older
+// apps and browsers do not say, so they show as unknown.
+const clientLabels = { web: "Browser mixer", ios: "iPhone app", android: "Android app", "app-web": "App in a browser" };
+const clientLabel = type => clientLabels[type] || <span className="muted">Unknown</span>;
+
 export function Clients({ status, access, reloadAccess }) {
   const { busy, message, run, setMessage } = useAction();
   const act = (request, success) => run(async () => { await request(); await reloadAccess(); }, success);
@@ -55,8 +60,9 @@ export function Clients({ status, access, reloadAccess }) {
       <Message message={message} />
     </Panel>
     <Panel title="Devices" meta={rows.length + " known · " + connected + " connected"} flush>
-      {rows.length ? <Table minWidth={860} rowKey={row => row.device?.id || "socket-" + row.client.id} rows={rows} columns={[
-        { title: "Device", render: row => row.device?.name || row.client?.username || <span className="muted">Unnamed device</span> },
+      {rows.length ? <Table minWidth={980} rowKey={row => row.device?.id || "socket-" + row.client.id} rows={rows} columns={[
+        { title: "Device", render: row => row.client?.username || row.device?.name || <span className="muted">Unnamed device</span> },
+        { title: "Client", render: row => clientLabel(row.client?.client || row.device?.client) },
         { title: "Status", render: statusTag },
         { title: "AUX mix", render: row => auxOf(row.client) ? <AuxLabel label={auxOf(row.client).label} colour={auxOf(row.client).colour} /> : <span className="muted">—</span> },
         { title: "Address", mono: true, render: row => (row.client?.address || row.device?.lastAddress || "—").replace(/^::ffff:/, "") },

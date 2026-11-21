@@ -42,7 +42,7 @@ Requires macOS 13 or later, on Apple silicon or Intel.
 3. Allow incoming connections and local network access when macOS asks.
 4. EarsMixer runs from the menu bar. Click its icon for a panel with the server switch, desk and device status, the mixer QR code and links to the admin dashboard and mixer. **Open at Login**, logs and updates are under the gear button.
 
-From 1.16.0, EarsMixer updates itself in one click. When a new version is out, the panel shows **Install Update…**, which downloads, verifies and installs it, then reopens EarsMixer. Installing restarts the server, so do it between services, not during one. Older versions need 1.16.0 downloaded once by hand.
+From 1.16.1, EarsMixer updates itself in one click. When a new version is out, the panel shows **Install Update…**, which downloads, verifies and installs it, then reopens EarsMixer. Installing restarts the server, so do it between services, not during one. Older versions, including 1.16.0, need 1.16.1 downloaded once by hand.
 
 Turn on **Demo Mode** in the panel to try EarsMixer without a desk: the server restarts against a built-in demo desk with 20 channels and 8 AUX mixes, and phones connect as usual. Demo mode is off again when the app next opens.
 
@@ -67,7 +67,7 @@ For a console-connected source deployment, configure the server and run `npm sta
 - `npm run installer:windows` builds the Windows installer into `dist/`; requires Inno Setup 6.7+ and the Windows .NET Framework C# compiler.
 - `npm run installer:macos` builds the macOS dmg into `dist/`; run it on a Mac with the Xcode command line tools.
 - GitHub Actions builds release installers from `main`; feature branches remain unpublished until merged. Product metadata and the release tag version come from [installer/version.inc.iss](installer/version.inc.iss).
-- Product version (Windows and macOS): **1.16.0**. Node package version: **2.18.0**, maintained in its separate upstream series.
+- Product version (Windows and macOS): **1.16.1**. Node package version: **2.18.1**, maintained in its separate upstream series.
 
 ### Signing the macOS app
 

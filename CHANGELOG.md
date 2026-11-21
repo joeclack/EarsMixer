@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.16.1 — 2026-11-21
+
+Product version: **1.16.1**. Node package version: **2.18.1**.
+
+- Fix one-click updates on macOS. In 1.16.0 the updater refused to start, because signed update feeds also need the download's signature checked before it is unpacked (`SUVerifyUpdateBeforeExtraction`), so **Check for Updates…** showed "The updater failed to start". 1.16.0 can't update itself, so download 1.16.1 once by hand; later versions install in one click.
+
 ## 1.16.0 — 2026-11-21
 
 Product version: **1.16.0**. Node package version: **2.18.0**.

@@ -129,6 +129,50 @@ function writeAppcast(dmg, version, sparkle, keyFile) {
     console.log("Sparkle appcast: dist/appcast.xml");
 }
 
+/**
+ * Installs the pinned dmgbuild (macos/dmg-requirements.txt) into dist/dmgbuild-venv
+ * and returns its command. Reinstalls when the requirements change.
+ */
+function dmgbuildCommand() {
+    const venv = path.join(root, "dist", "dmgbuild-venv");
+    const requirements = path.join(root, "macos", "dmg-requirements.txt");
+    const stamp = path.join(venv, "requirements.sha256");
+    const wanted = crypto.createHash("sha256").update(fs.readFileSync(requirements)).digest("hex");
+    const command = path.join(venv, "bin", "dmgbuild");
+    if (fs.existsSync(command) && fs.existsSync(stamp) && fs.readFileSync(stamp, "utf8") === wanted) return command;
+    fs.rmSync(venv, { recursive: true, force: true });
+    run("python3", ["-m", "venv", venv]);
+    run(path.join(venv, "bin", "python3"), ["-m", "pip", "install", "--quiet", "--disable-pip-version-check",
+        "--require-hashes", "--no-deps", "-r", requirements]);
+    fs.writeFileSync(stamp, wanted);
+    return command;
+}
+
+/**
+ * Builds the disk image as an installer window: a background with an arrow and
+ * "Drag EarsMixer onto the Applications folder", the app on the left and an
+ * Applications shortcut on the right (macos/dmg-settings.py).
+ */
+function makeDmg(appPath, dmg) {
+    const background = path.join(out, "dmg-background");
+    fs.rmSync(background, { recursive: true, force: true });
+    fs.mkdirSync(background, { recursive: true });
+    const drawing = path.join(root, "macos", "dmg-background.swift");
+    run("xcrun", ["swift", drawing, path.join(background, "background.png"), "1"]);
+    run("xcrun", ["swift", drawing, path.join(background, "background@2x.png"), "2"]);
+    // One TIFF with both resolutions, so the window is sharp on Retina screens.
+    const tiff = path.join(background, "background.tiff");
+    run("tiffutil", ["-cathidpicheck", path.join(background, "background.png"), path.join(background, "background@2x.png"), "-out", tiff]);
+
+    // Size the image with room to spare: the server binaries are large and compress well.
+    const used = spawnSync("du", ["-sk", appPath], { encoding: "utf8" });
+    if (used.status !== 0) throw new Error("du failed.");
+    const megabytes = Math.ceil(parseInt(used.stdout, 10) / 1024 * 1.3) + 64;
+    fs.rmSync(dmg, { force: true });
+    run(dmgbuildCommand(), ["-s", path.join(root, "macos", "dmg-settings.py"),
+        "-D", `app=${appPath}`, "-D", `background=${tiff}`, "-D", `size=${megabytes}M`, "EarsMixer", dmg]);
+}
+
 function infoPlist(version, publicKey) {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -249,18 +293,8 @@ function main() {
     run("codesign", [...signing.appFlags, app]);
     run("codesign", ["--verify", "--strict", "--deep", "--verbose=2", app]);
 
-    const staging = path.join(out, "dmg");
-    fs.mkdirSync(staging, { recursive: true });
-    run("ditto", [app, path.join(staging, "EarsMixer.app")]);
-    fs.symlinkSync("/Applications", path.join(staging, "Applications"));
     const dmg = path.join(root, "dist", `EarsMixer-${version}-macos.dmg`);
-    fs.rmSync(dmg, { force: true });
-    // hdiutil sizes the image itself and runs out of space on the large server binaries, so give it room.
-    const used = spawnSync("du", ["-sk", staging], { encoding: "utf8" });
-    if (used.status !== 0) throw new Error("du failed.");
-    const megabytes = Math.ceil(parseInt(used.stdout, 10) / 1024 * 1.3) + 64;
-    run("hdiutil", ["create", "-volname", "EarsMixer", "-srcfolder", staging, "-ov", "-format", "UDZO",
-        "-fs", "HFS+", "-megabytes", String(megabytes), dmg]);
+    makeDmg(app, dmg);
 
     if (signing.distribution) {
         run("codesign", ["--force", "--timestamp", "--sign", signing.identity, dmg]);
@@ -310,7 +344,7 @@ function notarise(dmg, env = process.env) {
     run("spctl", ["--assess", "--type", "open", "--context", "context:primary-signature", "--verbose=2", dmg]);
 }
 
-module.exports = { signingOptions, releaseNotesHtml, sparklePublicKey, sparkleDirectory, writeAppcast, infoPlist };
+module.exports = { signingOptions, releaseNotesHtml, sparklePublicKey, sparkleDirectory, writeAppcast, infoPlist, makeDmg };
 
 if (require.main === module) {
     try { main(); } catch (error) { console.error(error.message); process.exitCode = 1; }

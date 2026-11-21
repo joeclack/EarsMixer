@@ -28,7 +28,7 @@ class Control {
   }
   set innerHTML(markup) {
     if (!markup.includes("channel-header")) return;
-    this.controls = new Map([".channel-name", ".volumeInput", ".fader-thumb", ".level-readout", ".drag-handle"].map(selector => [selector, new Control()]));
+    this.controls = new Map([".channel-name", ".volumeInput", ".fader-thumb", ".level-readout", ".drag-handle", ".visibility-toggle"].map(selector => [selector, new Control()]));
   }
   querySelector(selector) { return this.controls?.get(selector) || null; }
   querySelectorAll(selector) {
@@ -177,6 +177,30 @@ test("mixer filters enabled controls, sorts configured order and queries actual 
   ]);
 });
 
+test("hidden channels are saved to local storage, restored on reload and leave a message when all are hidden", () => {
+  const storage = new Map();
+  const mixer = createMixer(mixerSource, storage);
+  const row = id => mixer.controls.get("channels").children.find(entry => entry.dataset.channel === id);
+  const toggle = id => row(id).querySelector(".visibility-toggle");
+  assert.equal(toggle("2").attributes["aria-label"], "Hide Vocal");
+  toggle("2").dispatchEvent({ type: "click" });
+  assert.equal(row("2").classList.contains("is-hidden"), true);
+  assert.equal(toggle("2").attributes["aria-label"], "Show Vocal");
+  assert.deepEqual(JSON.parse(storage.get("hiddenChannels")), ["2"]);
+  assert.equal(mixer.controls.get("emptyChannels").hidden, true);
+
+  const reloaded = createMixer(mixerSource, storage);
+  const reloadedRow = reloaded.controls.get("channels").children.find(entry => entry.dataset.channel === "2");
+  assert.equal(reloadedRow.classList.contains("is-hidden"), true);
+
+  toggle("65").dispatchEvent({ type: "click" });
+  assert.equal(mixer.controls.get("emptyChannels").hidden, false);
+  assert.match(mixer.controls.get("emptyChannels").textContent, /All channels are hidden/);
+  toggle("2").dispatchEvent({ type: "click" });
+  assert.deepEqual(JSON.parse(storage.get("hiddenChannels")), ["65"]);
+  assert.equal(mixer.controls.get("emptyChannels").hidden, true);
+});
+
 test("each fader waits for its own finite value and ignores responses for another AUX", () => {
   const mixer = createMixer();
   assert.equal(mixer.slider(2).disabled, true);
@@ -213,7 +237,7 @@ test("set all levels off requires confirmation and loaded channels, scopes write
     mixer.tick(100);
     assert.deepEqual(mixer.writes().map(message => message.address).sort(), ["/Input_Channels/2/Aux_Send/2/send_level", "/Input_Channels/65/Aux_Send/2/send_level"]);
     assert(mixer.writes().every(message => message.args[0] === -150));
-    assert.equal(mixer.controls.get("channels").children[0].querySelector(".level-readout").textContent, "0% / −∞ dB");
+    assert.equal(mixer.controls.get("channels").children[0].querySelector(".level-readout").textContent, "−∞ dB");
     mixer.socket().close();
     assert.equal(button.disabled, true);
     button.dispatchEvent({ type: "click" });
@@ -249,15 +273,15 @@ test("slider readouts display native dB, off and local drag values", () => {
     const readout = mixer.controls.get("channels").children[0].querySelector(".level-readout");
     assert.equal(readout.textContent, "—");
     mixer.level(2, 2, -3);
-    assert.equal(readout.textContent, "55% / -3 dB");
-    assert.equal(mixer.slider(2).attributes["aria-valuetext"], "55 percent, -3 decibels");
+    assert.equal(readout.textContent, "-3 dB");
+    assert.equal(mixer.slider(2).attributes["aria-valuetext"], "-3 decibels");
     mixer.level(2, 2, -150);
-    assert.equal(readout.textContent, "0% / −∞ dB");
+    assert.equal(readout.textContent, "−∞ dB");
     mixer.level(2, 2, 10);
-    assert.equal(readout.textContent, "100% / 10 dB");
+    assert.equal(readout.textContent, "10 dB");
     mixer.slider(2).value = "0.5";
     mixer.slider(2).dispatchEvent({ type: "input" });
-    assert.equal(readout.textContent, "50% / -5.1 dB");
+    assert.equal(readout.textContent, "-5.1 dB");
   }
 });
 

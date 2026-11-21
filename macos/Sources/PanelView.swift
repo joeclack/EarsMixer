@@ -21,7 +21,7 @@ struct PanelView: View {
                 }
                 .frame(maxWidth: .infinity)
             }
-            if let update = model.update { updateBanner(update) }
+            if let version = model.availableUpdate { updateBanner(version) }
             if let notice = model.notice {
                 Text(notice)
                     .font(.footnote)
@@ -55,10 +55,7 @@ struct PanelView: View {
                     get: { model.openAtLogin },
                     set: { model.setOpenAtLogin($0) }))
                 Divider()
-                Button(model.checkingUpdates ? "Checking for Updates..." : "Check for Updates...") {
-                    Task { await model.checkForUpdates(manual: true) }
-                }
-                .disabled(model.checkingUpdates)
+                Button("Check for Updates...") { model.checkForUpdates() }
                 Divider()
                 Button("Quit EarsMixer") { NSApp.terminate(nil) }
             } label: {
@@ -193,14 +190,18 @@ struct PanelView: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func updateBanner(_ update: UpdateRelease) -> some View {
+    private func updateBanner(_ version: String) -> some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 6) {
-                Text("EarsMixer \(update.version) is available")
+                Text("EarsMixer \(version) is available")
                     .font(.callout.weight(.semibold))
+                Text("Installing restarts the server, so phones reconnect.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 HStack {
-                    Button("Download") { model.openUpdate(notes: false) }
-                    Button("Release Notes") { model.openUpdate(notes: true) }
+                    Button("Install Update...") { model.checkForUpdates() }
+                    Button("Release Notes") { model.openReleaseNotes() }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

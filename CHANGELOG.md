@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.16.0 — 2026-11-21
+
+Product version: **1.16.0**. Node package version: **2.18.0**.
+
+- One-click updates on macOS with Sparkle. When a new version is out, the menu bar panel says so; **Install Update…** shows the release notes, downloads the signed and notarised update, verifies it, installs it and reopens EarsMixer. Updates never install in the background, because installing restarts the server and phones reconnect. **Check for Updates…** is still under the gear button. Apps older than 1.16.0 still need this version downloaded once by hand.
+
 ## 1.15.0 — 2026-11-21
 
 Product version: **1.15.0**. Node package version: **2.17.0**.

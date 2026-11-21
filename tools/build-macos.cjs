@@ -12,6 +12,13 @@
 //   APPLE_API_KEY_PATH, APPLE_API_KEY_ID, APPLE_API_ISSUER_ID
 //                        App Store Connect API key (.p8 path, key ID, issuer ID). When set with a
 //                        Developer ID identity, the dmg is notarised by Apple and the ticket stapled.
+//   SPARKLE_PRIVATE_KEY_PATH
+//                        Sparkle EdDSA private key file. When set, the build signs the dmg for Sparkle and
+//                        writes dist/appcast.xml, which the release publishes for one-click updates.
+//
+// Sparkle (https://sparkle-project.org) is downloaded once into dist/sparkle-cache and checked
+// against a pinned SHA-256. The app checks SPARKLE_FEED and only installs updates signed with the
+// private key matching macos/sparkle-public-key.txt.
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -24,6 +31,13 @@ const app = path.join(out, "EarsMixer.app");
 const contents = path.join(app, "Contents");
 
 const serverEntitlements = path.join(root, "macos", "server.entitlements");
+const crypto = require("node:crypto");
+
+const SPARKLE_VERSION = "2.10.1";
+const SPARKLE_SHA256 = "1a856d2a9edb8e628de88121d7be04cf0e2167f8641650b78fca00b14244cf27";
+const SPARKLE_FEED = "https://github.com/joeclack/EarsMixer/releases/latest/download/appcast.xml";
+const RELEASES = "https://github.com/joeclack/EarsMixer/releases";
+const sparklePublicKeyFile = path.join(root, "macos", "sparkle-public-key.txt");
 
 function run(command, args, options = {}) {
     const result = spawnSync(command, args, { cwd: root, stdio: "inherit", ...options });
@@ -31,7 +45,91 @@ function run(command, args, options = {}) {
     if (result.status !== 0) throw new Error(`${path.basename(command)} failed (exit ${result.status}).`);
 }
 
-function infoPlist(version) {
+/** Downloads and unpacks Sparkle once, verifying the archive. Returns its folder. */
+function sparkleDirectory() {
+    const directory = path.join(root, "dist", "sparkle-cache", SPARKLE_VERSION);
+    if (fs.existsSync(path.join(directory, "Sparkle.framework"))) return directory;
+    fs.mkdirSync(path.dirname(directory), { recursive: true });
+    const archive = directory + ".tar.xz";
+    if (!fs.existsSync(archive)) {
+        run("curl", ["-fsSL", "--retry", "3", "-o", archive + ".part",
+            `https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz`]);
+        fs.renameSync(archive + ".part", archive);
+    }
+    const digest = crypto.createHash("sha256").update(fs.readFileSync(archive)).digest("hex");
+    if (digest !== SPARKLE_SHA256) {
+        fs.rmSync(archive, { force: true });
+        throw new Error(`Sparkle ${SPARKLE_VERSION} download did not match its checksum (got ${digest}).`);
+    }
+    const staging = directory + ".tmp";
+    fs.rmSync(staging, { recursive: true, force: true });
+    fs.mkdirSync(staging, { recursive: true });
+    run("tar", ["-xJf", archive, "-C", staging]);
+    fs.rmSync(directory, { recursive: true, force: true });
+    fs.renameSync(staging, directory);
+    return directory;
+}
+
+function sparklePublicKey() {
+    if (!fs.existsSync(sparklePublicKeyFile)) return "";
+    return fs.readFileSync(sparklePublicKeyFile, "utf8").split("\n").map(line => line.trim()).find(line => line && !line.startsWith("#")) || "";
+}
+
+function escapeXml(text) {
+    return String(text).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c]);
+}
+
+/** The CHANGELOG section for this version as simple HTML for Sparkle's update window. */
+function releaseNotesHtml(version) {
+    const changelog = fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8").split("\n");
+    const start = changelog.findIndex(line => line.startsWith(`## ${version} `) || line === `## ${version}`);
+    if (start < 0) return `<p>EarsMixer ${escapeXml(version)}</p>`;
+    const items = [];
+    for (const line of changelog.slice(start + 1)) {
+        if (line.startsWith("## ")) break;
+        if (!line.startsWith("- ")) continue;
+        const html = escapeXml(line.slice(2))
+            .replace(/`([^`]+)`/g, "<code>$1</code>")
+            .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+        items.push(`<li>${html}</li>`);
+    }
+    return items.length ? `<ul>${items.join("")}</ul>` : `<p>EarsMixer ${escapeXml(version)}</p>`;
+}
+
+/** Signs the dmg for Sparkle and writes dist/appcast.xml describing this release. */
+function writeAppcast(dmg, version, sparkle, keyFile) {
+    const result = spawnSync(path.join(sparkle, "bin", "sign_update"), ["--ed-key-file", keyFile, dmg], { cwd: root, encoding: "utf8" });
+    if (result.status !== 0) throw new Error("sign_update failed: " + (result.stderr || result.stdout).trim());
+    const signature = /sparkle:edSignature="([^"]+)"/.exec(result.stdout)?.[1];
+    const length = /length="(\d+)"/.exec(result.stdout)?.[1];
+    if (!signature || !length) throw new Error("sign_update gave no signature: " + result.stdout.trim());
+    const url = `${RELEASES}/download/v${version}/${path.basename(dmg)}`;
+    const appcast = `<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>EarsMixer</title>
+    <link>${RELEASES}</link>
+    <item>
+      <title>EarsMixer ${escapeXml(version)}</title>
+      <pubDate>${new Date().toUTCString()}</pubDate>
+      <sparkle:version>${escapeXml(version)}</sparkle:version>
+      <sparkle:shortVersionString>${escapeXml(version)}</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <sparkle:fullReleaseNotesLink>${RELEASES}/tag/v${escapeXml(version)}</sparkle:fullReleaseNotesLink>
+      <description><![CDATA[${releaseNotesHtml(version).replace(/]]>/g, "]]&gt;")}]]></description>
+      <enclosure url="${escapeXml(url)}" length="${length}" type="application/octet-stream" sparkle:edSignature="${escapeXml(signature)}"/>
+    </item>
+  </channel>
+</rss>
+`;
+    const feed = path.join(root, "dist", "appcast.xml");
+    fs.writeFileSync(feed, appcast);
+    // Sign the feed too (SURequireSignedFeed), so its release notes and links can't be altered.
+    run(path.join(sparkle, "bin", "sign_update"), ["--ed-key-file", keyFile, feed]);
+    console.log("Sparkle appcast: dist/appcast.xml");
+}
+
+function infoPlist(version, publicKey) {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -52,6 +150,13 @@ function infoPlist(version) {
     <string>EarsMixer talks to your DiGiCo desk and to phones running the EarsMixer app on your local network.</string>
     <key>NSBonjourServices</key>
     <array><string>_earsmixer._tcp</string></array>
+    <key>SUFeedURL</key><string>${SPARKLE_FEED}</string>
+    <key>SUEnableAutomaticChecks</key><true/>
+    <!-- Never install in the background: an update restarts the server and drops every mix. -->
+    <key>SUAllowsAutomaticUpdates</key><false/>
+    <key>SUAutomaticallyUpdate</key><false/>
+    <key>SURequireSignedFeed</key><true/>${publicKey ? `
+    <key>SUPublicEDKey</key><string>${publicKey}</string>` : ""}
 </dict>
 </plist>
 `;
@@ -82,6 +187,14 @@ function main() {
     const serverDir = path.join(resources, "server");
     fs.mkdirSync(macos, { recursive: true });
     fs.mkdirSync(serverDir, { recursive: true });
+    fs.rmSync(path.join(root, "dist", "appcast.xml"), { force: true });
+
+    const signing = signingOptions();
+    const publicKey = sparklePublicKey();
+    if (signing.distribution && !publicKey) {
+        throw new Error("macos/sparkle-public-key.txt has no Sparkle public key. Release builds need it so the app can verify updates (see README).");
+    }
+    const sparkle = sparkleDirectory();
 
     // Keep downloaded packaging runtimes with the ignored build outputs.
     process.env.PKG_CACHE_PATH ||= path.join(root, "dist", "pkg-cache");
@@ -105,21 +218,32 @@ function main() {
     for (const arch of ["arm64", "x86_64"]) {
         const slice = path.join(out, `EarsMixer-${arch}`);
         run("xcrun", ["swiftc", "-O", "-parse-as-library", "-target", `${arch}-apple-macos13.0`,
+            "-F", sparkle, "-framework", "Sparkle", "-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks",
             ...sources, "-o", slice]);
         slices.push(slice);
     }
     run("lipo", ["-create", ...slices, "-output", path.join(macos, "EarsMixer")]);
 
-    fs.writeFileSync(path.join(contents, "Info.plist"), infoPlist(version));
+    // Embed Sparkle. Its XPC services are only for sandboxed apps, so they are left out.
+    const frameworks = path.join(contents, "Frameworks");
+    const framework = path.join(frameworks, "Sparkle.framework");
+    fs.mkdirSync(frameworks, { recursive: true });
+    run("ditto", [path.join(sparkle, "Sparkle.framework"), framework]);
+    fs.rmSync(path.join(framework, "XPCServices"), { force: true });
+    fs.rmSync(path.join(framework, "Versions", "B", "XPCServices"), { recursive: true, force: true });
+
+    fs.writeFileSync(path.join(contents, "Info.plist"), infoPlist(version, publicKey));
     buildIcon(resources);
     fs.copyFileSync(path.join(root, "LICENSE"), path.join(resources, "LICENSE"));
 
-    // Sign the nested server binaries first, then the app that contains them.
-    const signing = signingOptions();
+    // Sign from the inside out: server binaries, Sparkle's helpers and framework, then the app.
     for (const arch of ["arm64", "x64"]) {
         run("codesign", [...signing.flags, ...signing.entitlements(serverEntitlements), path.join(serverDir, `earsmixer-${arch}`)]);
     }
-    run("codesign", [...signing.flags, app]);
+    for (const part of ["Versions/B/Autoupdate", "Versions/B/Updater.app", ""]) {
+        run("codesign", [...signing.appFlags, path.join(framework, part)]);
+    }
+    run("codesign", [...signing.appFlags, app]);
     run("codesign", ["--verify", "--strict", "--deep", "--verbose=2", app]);
 
     const staging = path.join(out, "dmg");
@@ -138,6 +262,9 @@ function main() {
     if (signing.distribution) {
         run("codesign", ["--force", "--timestamp", "--sign", signing.identity, dmg]);
         notarise(dmg);
+        // Sign the final, stapled dmg: Sparkle checks the exact bytes it downloads.
+        if (process.env.SPARKLE_PRIVATE_KEY_PATH) writeAppcast(dmg, version, sparkle, process.env.SPARKLE_PRIVATE_KEY_PATH);
+        else console.log("SPARKLE_PRIVATE_KEY_PATH not set: no appcast, so installed apps won't be offered this update.");
     }
     console.log(`macOS app: ${dmg}`);
 }
@@ -148,13 +275,20 @@ function signingOptions(env = process.env) {
     const identity = (env.MACOS_SIGN_IDENTITY || "").trim();
     if (!identity) {
         console.log("MACOS_SIGN_IDENTITY not set: ad-hoc signing without the hardened runtime. macOS will warn when the app is opened.");
-        return { identity: "-", distribution: false, flags: ["--force", "--sign", "-"], entitlements: () => [] };
+        const plain = ["--force", "--sign", "-"];
+        return { identity: "-", distribution: false, flags: plain, appFlags: plain, entitlements: () => [] };
     }
     const distribution = identity !== "-";
+    const flags = ["--force", "--options", "runtime", ...(distribution ? ["--timestamp"] : []), "--sign", identity];
     return {
         identity,
         distribution,
-        flags: ["--force", "--options", "runtime", ...(distribution ? ["--timestamp"] : []), "--sign", identity],
+        // Server binaries: hardened runtime with their entitlements.
+        flags,
+        // The app and Sparkle. Under the hardened runtime, library validation only loads a
+        // framework signed by the same team, and ad-hoc signatures have no team, so ad-hoc
+        // builds sign these without it. Developer ID builds share a team and keep it.
+        appFlags: distribution ? flags : ["--force", "--sign", "-"],
         entitlements: file => ["--entitlements", file],
     };
 }
@@ -173,7 +307,7 @@ function notarise(dmg, env = process.env) {
     run("spctl", ["--assess", "--type", "open", "--context", "context:primary-signature", "--verbose=2", dmg]);
 }
 
-module.exports = { signingOptions };
+module.exports = { signingOptions, releaseNotesHtml, sparklePublicKey, sparkleDirectory, writeAppcast, infoPlist };
 
 if (require.main === module) {
     try { main(); } catch (error) { console.error(error.message); process.exitCode = 1; }

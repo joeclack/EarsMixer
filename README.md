@@ -42,9 +42,11 @@ Requires macOS 13 or later, on Apple silicon or Intel.
 3. Allow incoming connections and local network access when macOS asks.
 4. EarsMixer runs from the menu bar. Click its icon for a panel with the server switch, desk and device status, the mixer QR code and links to the admin dashboard and mixer. **Open at Login**, logs and updates are under the gear button.
 
+From 1.16.0, EarsMixer updates itself in one click. When a new version is out, the panel shows **Install Update…**, which downloads, verifies and installs it, then reopens EarsMixer. Installing restarts the server, so do it between services, not during one. Older versions need 1.16.0 downloaded once by hand.
+
 Turn on **Demo Mode** in the panel to try EarsMixer without a desk: the server restarts against a built-in demo desk with 20 channels and 8 AUX mixes, and phones connect as usual. Demo mode is off again when the app next opens.
 
-The server runs while the app is open; quitting the app stops it. Settings, data and logs live in `~/Library/Application Support/EarsMixer`. To update, quit EarsMixer and replace it in Applications with the newer version.
+The server runs while the app is open; quitting the app stops it. Settings, data and logs live in `~/Library/Application Support/EarsMixer`. To update by hand instead, quit EarsMixer and replace it in Applications with the newer version.
 
 ## Run from source
 
@@ -65,7 +67,7 @@ For a console-connected source deployment, configure the server and run `npm sta
 - `npm run installer:windows` builds the Windows installer into `dist/`; requires Inno Setup 6.7+ and the Windows .NET Framework C# compiler.
 - `npm run installer:macos` builds the macOS dmg into `dist/`; run it on a Mac with the Xcode command line tools.
 - GitHub Actions builds release installers from `main`; feature branches remain unpublished until merged. Product metadata and the release tag version come from [installer/version.inc.iss](installer/version.inc.iss).
-- Product version (Windows and macOS): **1.15.0**. Node package version: **2.17.0**, maintained in its separate upstream series.
+- Product version (Windows and macOS): **1.16.0**. Node package version: **2.18.0**, maintained in its separate upstream series.
 
 ### Signing the macOS app
 
@@ -87,6 +89,27 @@ To create them:
 4. Add the five secrets under the repository's Settings → Secrets and variables → Actions, then delete the exported `.p12` and the `.p8` from your Mac or store them in a password manager.
 
 To sign locally, install the certificate in your login keychain and run `npm run installer:macos` with `MACOS_SIGN_IDENTITY` set to the certificate's name (`security find-identity -v -p codesigning`). Add `APPLE_API_KEY_PATH`, `APPLE_API_KEY_ID` and `APPLE_API_ISSUER_ID` to notarise too. `MACOS_SIGN_IDENTITY=-` signs ad hoc with the hardened runtime to test the [server entitlements](macos/server.entitlements). Building the Intel server binary on Apple silicon needs Rosetta.
+
+### One-click updates (macOS)
+
+The macOS app uses [Sparkle](https://sparkle-project.org) 2.10.1. The build downloads it into `dist/sparkle-cache`, checks it against a pinned SHA-256, and embeds it without its XPC services, which only sandboxed apps need. The app reads `appcast.xml` from the latest GitHub release (`SUFeedURL`) and installs only updates whose `.dmg` and feed are signed with the EdDSA key matching [macos/sparkle-public-key.txt](macos/sparkle-public-key.txt) (`SURequireSignedFeed`). Release builds write the appcast from the stapled `.dmg` and the matching [CHANGELOG](CHANGELOG.md) section, and the release job publishes it with the installers.
+
+To create the signing key, once, on a Mac with the Sparkle download in `dist/sparkle-cache` (run `npm run installer:macos` or let a build fetch it first):
+
+1. Generate the key pair. The private key is saved in your login keychain, and the public key is printed:
+
+   ```bash
+   dist/sparkle-cache/2.10.1/bin/generate_keys
+   ```
+
+2. Put the printed public key on its own line in `macos/sparkle-public-key.txt` and commit it.
+3. Export the private key, add its contents as the `SPARKLE_PRIVATE_KEY` repository secret, then delete the file:
+
+   ```bash
+   dist/sparkle-cache/2.10.1/bin/generate_keys -x sparkle-private-key.txt
+   ```
+
+Keep the key in your keychain or a password manager. If it's lost, existing installs can't verify new updates and need one version downloaded by hand.
 
 See [CHANGELOG.md](CHANGELOG.md) for release history. Based on [OSCWebMixer2 by Marc Castles](https://github.com/castles/OSCWebMixer2), maintained by Joe Clack under the [MIT licence](LICENSE).
 

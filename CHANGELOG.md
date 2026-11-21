@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 1.18.0 — 2026-11-21
+
+Product version: **1.18.0**. Node package version: **2.20.0**.
+
+- Channel colours. In **Desk settings → Channels**, give a channel a colour from a fixed palette: nine colours, each in light, main and dark versions, plus white and black. Phones and the browser mixer show it as a strip by the channel and in its fader fill. The server keeps only palette colours.
+- The browser mixer is brought in line with the mobile app. Channels sit in one flat panel instead of separate cards. Levels show in dB only, with a 0 dB mark on each fader. Each device can hide channels from **Edit layout**. Phones and tablets held sideways show upright fader strips. Pan, All off, Edit layout and Nickname are buttons in the header on tablets, desktops and sideways phones; upright phones keep the floating fly-out.
+- The admin **Clients** page shows whether each device is the browser mixer, the iPhone or Android app, or the app in a browser. Older clients show as Unknown. A device's new nickname now appears without it having to reconnect.
+
 ## 1.17.0 — 2026-11-21
 
 Product version: **1.17.0**. Node package version: **2.19.0**.

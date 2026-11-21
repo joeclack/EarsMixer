@@ -155,7 +155,10 @@ function infoPlist(version, publicKey) {
     <!-- Never install in the background: an update restarts the server and drops every mix. -->
     <key>SUAllowsAutomaticUpdates</key><false/>
     <key>SUAutomaticallyUpdate</key><false/>
-    <key>SURequireSignedFeed</key><true/>${publicKey ? `
+    <!-- Signed feeds (SURequireSignedFeed) require verifying the download's EdDSA signature
+         before it is unpacked; Sparkle refuses to start without both. -->
+    <key>SURequireSignedFeed</key><true/>
+    <key>SUVerifyUpdateBeforeExtraction</key><true/>${publicKey ? `
     <key>SUPublicEDKey</key><string>${publicKey}</string>` : ""}
 </dict>
 </plist>

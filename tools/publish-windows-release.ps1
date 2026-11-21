@@ -38,6 +38,9 @@ else {
 # Each successful main build refreshes the installers for the current version.
 # Reuse the existing release/tag; --target applies only when creating a new tag.
 $uploads = @($installer.FullName) + @($macApps | ForEach-Object { $_.FullName })
+# The Sparkle feed for one-click macOS updates. Installed apps read it from the latest release.
+$appcast = Join-Path $ArtifactDirectory 'appcast.xml'
+if (Test-Path -LiteralPath $appcast -PathType Leaf) { $uploads += (Resolve-Path -LiteralPath $appcast).Path }
 Invoke-Gh (@('release', 'upload', $tag) + $uploads + @('--repo', $Repository, '--clobber'))
 
 if ($release.isDraft) {

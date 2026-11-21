@@ -148,6 +148,7 @@ jobs:
           MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
           keychain="$RUNNER_TEMP/signing.keychain-db"
           keychain_password=$(openssl rand -base64 24)
@@ -164,6 +165,13 @@ jobs:
           echo "MACOS_SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
           printf '%s\n' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/notary-key.p8"
           echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/notary-key.p8" >> "$GITHUB_ENV"
+          # Signs the dmg and appcast for Sparkle updates. Without it no appcast is published.
+          if [ -n "$SPARKLE_PRIVATE_KEY" ]; then
+            (umask 077; printf '%s' "$SPARKLE_PRIVATE_KEY" > "$RUNNER_TEMP/sparkle-key")
+            echo "SPARKLE_PRIVATE_KEY_PATH=$RUNNER_TEMP/sparkle-key" >> "$GITHUB_ENV"
+          else
+            echo "::warning::SPARKLE_PRIVATE_KEY is not set, so installed apps won't be offered this release as an update."
+          fi
 
       - name: Build macOS app
         env:
@@ -181,7 +189,7 @@ jobs:
         if: always() && env.SIGN_FOR_RELEASE == 'true'
         run: |
           security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
-          rm -f "$RUNNER_TEMP/notary-key.p8"
+          rm -f "$RUNNER_TEMP/notary-key.p8" "$RUNNER_TEMP/sparkle-key"
 
       - name: Check the server starts
         run: |
@@ -198,7 +206,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: EarsMixer-macos-app
-          path: dist/*-macos.dmg
+          # appcast.xml exists only for signed release builds with the Sparkle key.
+          path: |
+            dist/*-macos.dmg
+            dist/appcast.xml
           if-no-files-found: error
           compression-level: 0
           retention-days: 30

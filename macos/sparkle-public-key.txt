@@ -1,0 +1,4 @@
+# Sparkle EdDSA public key for one-click macOS updates (SUPublicEDKey).
+# The app only installs updates signed with the matching private key, which is
+# kept in your login keychain and the SPARKLE_PRIVATE_KEY GitHub secret.
+# Release builds fail until the key is on the line below. See README "One-click updates".

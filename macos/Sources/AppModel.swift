@@ -17,8 +17,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var qr: NSImage?
     @Published private(set) var link: String?
     @Published private(set) var linkIsLocalOnly = false
-    @Published private(set) var update: UpdateRelease?
-    @Published private(set) var checkingUpdates = false
+    /// The version of an update Sparkle has found and is waiting to install.
+    @Published private(set) var availableUpdate: String?
     @Published private(set) var notice: String?
     @Published private(set) var openAtLogin = false
     /// Demo mode runs the server against a built-in demo desk. It is not remembered,
@@ -26,7 +26,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var demoMode = false
 
     private var pollTimer: Timer?
-    private var updateTimer: Timer?
+    private let updates = Updates()
     private var panelVisible = false
     private var polling = false
 
@@ -37,13 +37,9 @@ final class AppModel: ObservableObject {
         pollTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in await self?.poll() }
         }
-        updateTimer = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in await self?.checkForUpdates(manual: false) }
-        }
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 10_000_000_000)
-            await self?.checkForUpdates(manual: false)
-        }
+        // Sparkle checks on its own schedule and announces updates through onAvailable.
+        updates.onAvailable = { [weak self] version in self?.availableUpdate = version }
+        updates.start()
     }
 
     private func serverChanged() {
@@ -149,21 +145,12 @@ final class AppModel: ObservableObject {
         openAtLogin = SMAppService.mainApp.status == .enabled
     }
 
-    func checkForUpdates(manual: Bool) async {
-        guard !checkingUpdates else { return }
-        checkingUpdates = true
-        defer { checkingUpdates = false }
-        do {
-            update = try await ReleaseChecker.check(installed: ProductInfo.version)
-            if manual && update == nil { notice = "EarsMixer \(ProductInfo.version) is the latest version." }
-        } catch {
-            // An offline mixer network must never interrupt the server or show background errors.
-            if manual { notice = "Could not check for updates. Check your internet connection." }
-        }
-    }
+    /// Opens Sparkle's update window, which checks now or offers a waiting update.
+    func checkForUpdates() { updates.checkNow() }
 
-    func openUpdate(notes: Bool) {
-        guard let update else { return }
-        NSWorkspace.shared.open(notes ? update.releaseURL : update.downloadURL)
+    func openReleaseNotes() {
+        guard let version = availableUpdate,
+              let url = URL(string: "https://github.com/joeclack/EarsMixer/releases/tag/v\(version)") else { return }
+        NSWorkspace.shared.open(url)
     }
 }

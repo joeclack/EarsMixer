@@ -18,6 +18,9 @@ namespace EarsMixer
         internal const string ServiceName = "EarsMixer";
         internal static readonly string Home = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "EarsMixer");
+        // The service starts in demo mode while this file exists (see lib/demo-mode.js).
+        internal static readonly string DemoFlag = Path.Combine(Home, "demo-mode");
+        internal static bool DemoMode { get { return File.Exists(DemoFlag); } }
 
         [STAThread]
         private static int Main(string[] args)
@@ -85,6 +88,17 @@ namespace EarsMixer
 
         internal static void ControlService(string command)
         {
+            // Demo mode is a flag file in the service's home, followed by a restart.
+            if (command == "demo-on" || command == "demo-off")
+            {
+                if (command == "demo-on")
+                {
+                    Directory.CreateDirectory(Home);
+                    File.WriteAllText(DemoFlag, "Remove this file, or turn off Demo mode in the tray, to use the desk again.\r\n");
+                }
+                else if (File.Exists(DemoFlag)) File.Delete(DemoFlag);
+                command = "restart";
+            }
             if (command != "start" && command != "stop" && command != "restart")
                 throw new ArgumentException("Unknown service command.");
             using (var service = new ServiceController(ServiceName))
@@ -168,7 +182,7 @@ namespace EarsMixer
     {
         private readonly NotifyIcon icon;
         private readonly System.Windows.Forms.Timer timer;
-        private readonly ToolStripMenuItem status, start, stop, restart, checkUpdates, downloadUpdate, releaseNotes;
+        private readonly ToolStripMenuItem status, start, stop, restart, demo, checkUpdates, downloadUpdate, releaseNotes;
         private readonly ConnectionWindow window;
         private readonly EventWaitHandle exit = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\EarsMixerTrayExit");
         private readonly CancellationTokenSource updateCancellation = new CancellationTokenSource();
@@ -191,6 +205,8 @@ namespace EarsMixer
             stop = new ToolStripMenuItem("Stop service", null, async (s, e) => await Control("stop"));
             restart = new ToolStripMenuItem("Restart service", null, async (s, e) => await Control("restart"));
             menu.Items.AddRange(new ToolStripItem[] { start, stop, restart });
+            demo = new ToolStripMenuItem("Demo mode (no desk needed)", null, async (s, e) => await Control(Program.DemoMode ? "demo-off" : "demo-on"));
+            menu.Items.Add(demo);
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("Open logs", null, (s, e) => OpenFolder("logs"));
             menu.Items.Add("Open settings and plugins", null, (s, e) => OpenFolder(""));
@@ -298,13 +314,16 @@ namespace EarsMixer
                     running = state == ServiceControllerStatus.Running;
                     stopped = state == ServiceControllerStatus.Stopped;
                     text = running ? "Service running" : stopped ? "Service stopped" : "Service: " + state;
+                    if (Program.DemoMode) text += " (demo mode)";
                 }
             }
             catch { text = "Service unavailable - install or check Windows Services"; }
             status.Text = controlling ? "Changing service status..." : text;
-            icon.Text = "EarsMixer - " + (running ? "running" : stopped ? "stopped" : "unavailable");
+            icon.Text = "EarsMixer - " + (running ? (Program.DemoMode ? "demo mode" : "running") : stopped ? "stopped" : "unavailable");
             start.Enabled = !controlling && installed && stopped;
             stop.Enabled = restart.Enabled = !controlling && installed && running;
+            demo.Checked = Program.DemoMode;
+            demo.Enabled = !controlling && installed;
             window.SetServiceState(status.Text, running);
         }
         private async Task Control(string command)

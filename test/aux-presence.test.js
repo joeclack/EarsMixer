@@ -26,3 +26,29 @@ test('presence is AUX scoped, excludes self/observers/closed sockets and sends o
   sendAuxPresence(a, []);
   assert.deepEqual(a.messages.at(-1).presence.peers, []);
 });
+
+test('a phone joining a mix hears who changed it in the last two hours, and never counts its own device', () => {
+  const { recordAuxChange, clearAuxChanges, RECENT_CHANGE_MS } = require('../lib/aux-presence');
+  clearAuxChanges();
+  const now = Date.now();
+  const joe = client(1, 2, 'Joe', {}); joe.clientInfo.deviceId = 'joe-phone';
+  const joeAgain = client(5, 2, 'Joe', {}); joeAgain.clientInfo.deviceId = 'joe-phone';
+  const drummer = client(2, 2, 'Drummer'); drummer.clientInfo.deviceId = 'drum-phone';
+  // Another connection from Joe's own phone is not someone else on the mix.
+  sendAuxPresence(joe, [joe, joeAgain], now);
+  assert.deepEqual(joe.messages.at(-1), { presence: { aux: 2, peers: [] } });
+  recordAuxChange(drummer, 2, now - 25 * 60000);
+  sendAuxPresence(joe, [joe], now);
+  assert.deepEqual(joe.messages.at(-1).presence.lastChange, { nickname: 'Drummer', minutesAgo: 25, self: false });
+  // The drummer's own change, seen from a new connection on the same phone, is theirs.
+  const drummerAgain = client(6, 2, 'Drummer'); drummerAgain.clientInfo.deviceId = 'drum-phone';
+  sendAuxPresence(drummerAgain, [drummerAgain], now);
+  assert.equal(drummerAgain.messages.at(-1).presence.lastChange.self, true);
+  // Older than two hours, or on another mix, it is not mentioned.
+  sendAuxPresence(joe, [joe], now - 25 * 60000 + RECENT_CHANGE_MS);
+  assert.equal('lastChange' in joe.messages.at(-1).presence, false);
+  const other = client(3, 4, 'Keys');
+  sendAuxPresence(other, [other], now);
+  assert.equal('lastChange' in other.messages.at(-1).presence, false);
+  clearAuxChanges();
+});

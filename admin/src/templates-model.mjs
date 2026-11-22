@@ -1,11 +1,12 @@
 // Pure helpers for the template editor, kept free of UI so they can be tested.
-export const emptyConfig = aux => ({ selectedAux: aux, channelOrder: [], favouritesByAux: {}, hiddenByAux: {}, groupsByAux: {}, globalGroups: [], view: "list" });
+// Templates never choose a starting AUX; selectedAux stays null for older apps.
+export const emptyConfig = () => ({ selectedAux: null, channelOrder: [], favouritesByAux: {}, hiddenByAux: {}, groupsByAux: {}, globalGroups: [], view: "list" });
 export const clone = value => JSON.parse(JSON.stringify(value));
 
 // Older templates showed only favourites on an AUX. Keep the same channels
 // visible by hiding the rest; favourites and the starting view are no longer used.
 export function upgrade(config, channels) {
-  const next = { ...emptyConfig(config.selectedAux), ...clone(config) };
+  const next = { ...emptyConfig(), ...clone(config), selectedAux: null };
   for (const [aux, settings] of Object.entries(next.favouritesByAux || {})) {
     if (settings?.enabled && !next.hiddenByAux[aux] && channels.length)
       next.hiddenByAux[aux] = channels.map(channel => channel.channel).filter(id => !settings.channels.includes(id));

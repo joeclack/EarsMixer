@@ -18,7 +18,7 @@ test("personal templates roundtrip, attribution, concurrency, and safe persisten
     assert.equal((await fetch(base + "/api/templates", { method: "PUT" })).status, 404);
     assert.equal((await fetch(base + "/api/profiles", { method: "PUT" })).status, 404);
     let response = await save("  Joe   Clack  ", config, "  Joe  "); assert.equal(response.status, 200);
-    const first = await response.json(); assert.equal(first.name, "Joe Clack"); assert.match(first.id, /^[a-f0-9]{64}$/); assert(Number.isFinite(Date.parse(first.updatedAt))); assert.deepEqual(first.config, { ...config, hiddenByAux: {}, groupsByAux: {}, globalGroups: [] });
+    const first = await response.json(); assert.equal(first.name, "Joe Clack"); assert.match(first.id, /^[a-f0-9]{64}$/); assert(Number.isFinite(Date.parse(first.updatedAt))); assert.deepEqual(first.config, { ...config, selectedAux: null, hiddenByAux: {}, groupsByAux: {}, globalGroups: [] });
     const diskPath = path.join(directory, "templates", first.id + ".json");
     assert.deepEqual(JSON.parse(await fs.readFile(diskPath, "utf8")), first);
     assert.equal(first.createdBy, "Joe"); assert.equal(first.updatedBy, "Joe"); assert.equal(first.createdAt, first.updatedAt); assert.equal(first.config.username, undefined);
@@ -29,7 +29,8 @@ test("personal templates roundtrip, attribution, concurrency, and safe persisten
     const restoredLegacy = await (await fetch(base + "/api/templates/" + first.id)).json();
     assert.equal(restoredLegacy.createdBy, null); assert.equal(restoredLegacy.updatedBy, null); assert.equal(restoredLegacy.createdAt, updated.updatedAt);
     assert.equal((await (await fetch(base + "/api/templates")).json()).templates.length, 1);
-    assert.equal((await (await fetch(base + "/api/templates/" + first.id)).json()).config.selectedAux, 1);
+    // Templates never carry a starting AUX, including ones saved with one before.
+    assert.equal((await (await fetch(base + "/api/templates/" + first.id)).json()).config.selectedAux, null);
     const concurrent = await Promise.all([save("Alice"), save("Bob"), save("Alice", { ...config, view: "list" })]); assert(concurrent.every(response => response.status === 200));
     assert.equal((await (await fetch(base + "/api/templates")).json()).templates.length, 3);
     assert.equal((await save(" ")).status, 400); assert.equal((await save("X".repeat(81))).status, 400);
@@ -68,7 +69,7 @@ test("templates carry hidden channels and channel groups under the mobile app's 
   const base = { selectedAux: 1, channelOrder: [1, 2, 3, 4], favouritesByAux: {}, view: "list" };
   const config = { ...base, hiddenByAux: { "1": [4, 4] }, globalGroups: [{ id: 1, name: " Vocals ", members: [1, 2] }],
     groupsByAux: { "2": [{ id: 2, name: "", members: [3, 4] }], "3": [] } };
-  assert.deepEqual(validateTemplateConfig(config), { ...base, hiddenByAux: { "1": [4] }, globalGroups: [{ id: 1, name: "Vocals", members: [1, 2] }],
+  assert.deepEqual(validateTemplateConfig(config), { ...base, selectedAux: null, hiddenByAux: { "1": [4] }, globalGroups: [{ id: 1, name: "Vocals", members: [1, 2] }],
     groupsByAux: { "2": [{ id: 2, name: "", members: [3, 4] }] } });
   const rejects = settings => assert.throws(() => validateTemplateConfig({ ...base, ...settings }));
   rejects({ globalGroups: [{ id: 1, name: "", members: [1] }] });

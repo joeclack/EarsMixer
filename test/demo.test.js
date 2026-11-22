@@ -214,7 +214,8 @@ test("offline v2: discovery, scoped clients, dashboard, templates, admin session
     const template = await response.json();
     assert.equal(template.createdBy, "Lead singer");
     assert.equal(template.updatedBy, "Lead singer");
-    const savedConfig = { ...templateConfig, hiddenByAux: {}, groupsByAux: {}, globalGroups: [] };
+    // Templates never keep a starting AUX.
+    const savedConfig = { ...templateConfig, selectedAux: null, hiddenByAux: {}, groupsByAux: {}, globalGroups: [] };
     assert.deepEqual(template.config, savedConfig);
     assert(!("level" in template.config), "personal layouts must not store desk send values");
     assert.deepEqual((await (await request("/api/templates/" + template.id)).json()).config, savedConfig);

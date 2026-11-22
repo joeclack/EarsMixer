@@ -7,6 +7,7 @@
 Product version: **1.19.0**. Node package version: **2.21.0**.
 
 - Phones can choose **No AUX**. The server takes the phone off its mix, so others on that mix stop seeing it and the admin dashboard shows it with no mix. Its activity log says "Chose No AUX". Older phones are unaffected.
+- Templates no longer choose a starting AUX mix. Applying one changes the layout but keeps the musician's own mix. In **Templates**, the AUX menu now only chooses which mix's layout you're editing, and templates saved with a starting AUX lose it.
 
 ## 1.18.0 — 2026-11-21
 

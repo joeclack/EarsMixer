@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.19.0 — 2026-11-22
+
+Product version: **1.19.0**. Node package version: **2.21.0**.
+
+- Phones can choose **No AUX**. The server takes the phone off its mix, so others on that mix stop seeing it and the admin dashboard shows it with no mix. Its activity log says "Chose No AUX". Older phones are unaffected.
+
 ## 1.18.0 — 2026-11-21
 
 Product version: **1.18.0**. Node package version: **2.20.0**.

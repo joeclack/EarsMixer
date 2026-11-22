@@ -18,7 +18,7 @@ test("personal templates roundtrip, attribution, concurrency, and safe persisten
     assert.equal((await fetch(base + "/api/templates", { method: "PUT" })).status, 404);
     assert.equal((await fetch(base + "/api/profiles", { method: "PUT" })).status, 404);
     let response = await save("  Joe   Clack  ", config, "  Joe  "); assert.equal(response.status, 200);
-    const first = await response.json(); assert.equal(first.name, "Joe Clack"); assert.match(first.id, /^[a-f0-9]{64}$/); assert(Number.isFinite(Date.parse(first.updatedAt))); assert.deepEqual(first.config, { ...config, selectedAux: null, hiddenByAux: {}, groupsByAux: {}, globalGroups: [] });
+    const first = await response.json(); assert.equal(first.name, "Joe Clack"); assert.match(first.id, /^[a-f0-9]{64}$/); assert(Number.isFinite(Date.parse(first.updatedAt))); assert.deepEqual(first.config, { ...config, selectedAux: null, hidden: [], hiddenByAux: {}, groupsByAux: {}, globalGroups: [] });
     const diskPath = path.join(directory, "templates", first.id + ".json");
     assert.deepEqual(JSON.parse(await fs.readFile(diskPath, "utf8")), first);
     assert.equal(first.createdBy, "Joe"); assert.equal(first.updatedBy, "Joe"); assert.equal(first.createdAt, first.updatedAt); assert.equal(first.config.username, undefined);
@@ -69,9 +69,20 @@ test("templates carry hidden channels and channel groups under the mobile app's 
   const base = { selectedAux: 1, channelOrder: [1, 2, 3, 4], favouritesByAux: {}, view: "list" };
   const config = { ...base, hiddenByAux: { "1": [4, 4] }, globalGroups: [{ id: 1, name: " Vocals ", members: [1, 2] }],
     groupsByAux: { "2": [{ id: 2, name: "", members: [3, 4] }], "3": [] } };
-  assert.deepEqual(validateTemplateConfig(config), { ...base, selectedAux: null, hiddenByAux: { "1": [4] }, globalGroups: [{ id: 1, name: "Vocals", members: [1, 2] }],
-    groupsByAux: { "2": [{ id: 2, name: "", members: [3, 4] }] } });
+  // An older per-mix template keeps the layout of the mix it was built on (its old
+  // starting AUX), as one layout for any mix.
+  assert.deepEqual(validateTemplateConfig(config), { ...base, selectedAux: null, hidden: [4], hiddenByAux: {}, groupsByAux: {},
+    globalGroups: [{ id: 1, name: "Vocals", members: [1, 2] }] });
+  // Without a starting AUX, the lowest mix with a layout is used, and its groups become all-mix groups.
+  assert.deepEqual(validateTemplateConfig({ ...config, selectedAux: null }), { ...base, selectedAux: null, hidden: [4], hiddenByAux: {}, groupsByAux: {},
+    globalGroups: [{ id: 1, name: "Vocals", members: [1, 2] }] });
+  assert.deepEqual(validateTemplateConfig({ ...base, selectedAux: null, groupsByAux: { "3": [{ id: 2, name: "Toms", members: [3, 4] }] } }).globalGroups,
+    [{ id: 2, name: "Toms", members: [3, 4] }]);
+  // A template saved as one layout keeps its own hidden list.
+  assert.deepEqual(validateTemplateConfig({ ...base, hidden: [2, 2, 3] }).hidden, [2, 3]);
   const rejects = settings => assert.throws(() => validateTemplateConfig({ ...base, ...settings }));
+  rejects({ hidden: [0] });
+  rejects({ hidden: "1" });
   rejects({ globalGroups: [{ id: 1, name: "", members: [1] }] });
   rejects({ globalGroups: [{ id: 0, name: "", members: [1, 2] }] });
   rejects({ globalGroups: [{ id: 1, name: "x".repeat(81), members: [1, 2] }] });

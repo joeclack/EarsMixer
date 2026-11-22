@@ -1,17 +1,20 @@
 // Pure helpers for the template editor, kept free of UI so they can be tested.
-// Templates never choose a starting AUX; selectedAux stays null for older apps.
-export const emptyConfig = () => ({ selectedAux: null, channelOrder: [], favouritesByAux: {}, hiddenByAux: {}, groupsByAux: {}, globalGroups: [], view: "list" });
+// A template is one channel layout for any mix: an order, one hidden list and
+// all-mix groups. It never chooses a starting AUX; the per-mix fields stay empty.
+export const emptyConfig = () => ({ selectedAux: null, channelOrder: [], favouritesByAux: {}, hidden: [], hiddenByAux: {}, groupsByAux: {}, globalGroups: [], view: "list" });
 export const clone = value => JSON.parse(JSON.stringify(value));
 
 // Older templates showed only favourites on an AUX. Keep the same channels
 // visible by hiding the rest; favourites and the starting view are no longer used.
+// The server already turns per-mix layouts into one layout; a favourites-only
+// template becomes a hidden list from its first mix with favourites on.
 export function upgrade(config, channels) {
   const next = { ...emptyConfig(), ...clone(config), selectedAux: null };
-  for (const [aux, settings] of Object.entries(next.favouritesByAux || {})) {
-    if (settings?.enabled && !next.hiddenByAux[aux] && channels.length)
-      next.hiddenByAux[aux] = channels.map(channel => channel.channel).filter(id => !settings.channels.includes(id));
+  if (!next.hidden.length && channels.length) {
+    const favourites = Object.entries(next.favouritesByAux || {}).sort(([a], [b]) => a - b).find(([, settings]) => settings?.enabled)?.[1];
+    if (favourites) next.hidden = channels.map(channel => channel.channel).filter(id => !favourites.channels.includes(id));
   }
-  next.favouritesByAux = {}; next.view = "list";
+  next.favouritesByAux = {}; next.hiddenByAux = {}; next.groupsByAux = {}; next.view = "list";
   return next;
 }
 // The list a musician sees on one AUX: single channels, and groups with their members together.

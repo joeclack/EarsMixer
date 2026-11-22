@@ -21,6 +21,7 @@ test("a run of changes to one control becomes one log line, newest first", async
   const log = coalesceLog([entry(1, 1, 0.5, 0.4), entry(2, 1, 0.6, 0.5), entry(3, 2, 0.2, 0.2), { client: 1, at: 4, type: "aux", aux: 2, auxLabel: "Bass" }]);
   assert.deepEqual(log.map(changeText), ["Opened Bass", "Ch2 20", "Ch1 40 → 60"]);
   assert.equal(log[2].at, 2);
+  assert.equal(changeText({ type: "aux", aux: null, auxLabel: null }), "Chose No AUX");
 });
 
 test("the template channel list keeps groups together and reorders within them", async () => {

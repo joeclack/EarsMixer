@@ -56,7 +56,7 @@ export function coalesceLog(entries) {
   return result.reverse();
 }
 export function changeText(entry) {
-  if (entry.type === "aux") return "Opened " + (entry.auxLabel || "AUX " + entry.aux);
+  if (entry.type === "aux") return entry.aux == null ? "Chose No AUX" : "Opened " + (entry.auxLabel || "AUX " + entry.aux);
   if (entry.type === "request") return "Asked: " + entry.label + (entry.text ? " — " + entry.text : "");
   const name = entry.channelLabel || "Channel " + entry.channel;
   if (entry.type === "mute") return name + (entry.to ? " unmuted" : " muted");

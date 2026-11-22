@@ -63,13 +63,16 @@ export function Templates({ status }) {
   const [name, setName] = useState("");
   const [draft, setDraft] = useState(null);
   const [saved, setSaved] = useState("");
+  // Which mix's hidden channels and groups are being edited. It is not saved:
+  // templates no longer choose a starting AUX.
+  const [editAux, setEditAux] = useState(null);
   const { busy, message, run, setMessage } = useAction();
   const topList = useRef(null);
   const refresh = async () => { const result = await api("/api/templates"); setTemplates(result.templates); return result.templates; };
   useEffect(() => { refresh().catch(error => setMessage({ text: error.message, error: true })); }, []);
 
   const channels = useMemo(() => new Map(status.channels.map(channel => [channel.channel, channel])), [status.channels]);
-  const aux = draft ? String(draft.selectedAux) : "";
+  const aux = draft ? String(status.aux.some(entry => entry.channel === editAux) ? editAux : status.aux[0]?.channel ?? "") : "";
   const order = draft ? [...draft.channelOrder, ...channels.keys()].filter((id, index, ids) => channels.has(id) && ids.indexOf(id) === index) : [];
   const auxGroups = draft ? draft.groupsByAux[aux] || [] : [];
   const visibleGroups = draft ? [...draft.globalGroups, ...auxGroups] : [];
@@ -95,11 +98,12 @@ export function Templates({ status }) {
     const template = await run(() => api("/api/templates/" + id));
     if (!template) return;
     const config = upgrade(template.config, status.channels);
-    if (!status.aux.some(entry => entry.channel === config.selectedAux)) config.selectedAux = status.aux[0]?.channel ?? null;
+    setEditAux(status.aux[0]?.channel ?? null);
     setSelectedId(id); setName(template.name); setDraft(config); setSaved(JSON.stringify([template.name, config]));
   };
   const create = () => {
-    const config = emptyConfig(status.aux[0]?.channel ?? null);
+    const config = emptyConfig();
+    setEditAux(status.aux[0]?.channel ?? null);
     setSelectedId(""); setName(""); setDraft(config); setSaved(""); setMessage({ text: "", error: false });
   };
   const save = async event => {
@@ -151,8 +155,8 @@ export function Templates({ status }) {
         <label className="field grow">Template name
           <input value={name} maxLength={80} required placeholder="e.g. Drums" onInput={event => setName(event.currentTarget.value)} />
         </label>
-        <label className="field grow">Starting AUX mix
-          <select value={aux} onChange={event => setDraft({ ...draft, selectedAux: Number(event.currentTarget.value) })}>
+        <label className="field grow">Edit the layout for
+          <select value={aux} onChange={event => setEditAux(Number(event.currentTarget.value))}>
             {status.aux.map(entry => <option key={entry.channel} value={String(entry.channel)}>{entry.label || "AUX " + entry.channel}</option>)}
           </select>
         </label>

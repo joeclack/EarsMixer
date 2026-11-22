@@ -166,6 +166,12 @@ test("offline v2: discovery, scoped clients, dashboard, templates, admin session
     await waitFor(() => presence(first)?.peers.length === 2, "new peer joins");
     visitor.socket.close();
     await waitFor(() => presence(first)?.peers.length === 1, "peer leaves");
+    // Choosing No AUX leaves the mix: others stop seeing the phone and it has no mix on the dashboard.
+    third.socket.send(JSON.stringify({ selectedAux: null }));
+    await waitFor(() => presence(first)?.peers.length === 0 && presence(third)?.aux === null, "No AUX leaves the mix");
+    await waitFor(async () => (await status()).clients.some(client => client.username === "Guitarist" && client.aux === null), "No AUX on the dashboard");
+    third.socket.send(JSON.stringify({ selectedAux: 8 }));
+    await waitFor(() => presence(first)?.peers.length === 1, "presence after leaving No AUX");
     assert.equal(dashboard.connections, 3, "observer sockets must not appear as mixer clients");
     assert.equal(new Set(dashboard.clients.map(client => client.id)).size, 3);
     assert.equal(dashboard.loaded, true);
@@ -208,7 +214,8 @@ test("offline v2: discovery, scoped clients, dashboard, templates, admin session
     const template = await response.json();
     assert.equal(template.createdBy, "Lead singer");
     assert.equal(template.updatedBy, "Lead singer");
-    const savedConfig = { ...templateConfig, hiddenByAux: {}, groupsByAux: {}, globalGroups: [] };
+    // Templates never keep a starting AUX.
+    const savedConfig = { ...templateConfig, selectedAux: null, hiddenByAux: {}, groupsByAux: {}, globalGroups: [] };
     assert.deepEqual(template.config, savedConfig);
     assert(!("level" in template.config), "personal layouts must not store desk send values");
     assert.deepEqual((await (await request("/api/templates/" + template.id)).json()).config, savedConfig);

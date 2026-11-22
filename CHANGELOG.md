@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 1.21.0 — 2026-11-22
+
+Product version: **1.21.0**. Node package version: **2.23.0**.
+
+- Templates are one channel layout for any mix: one channel order, one list of hidden channels and one set of groups, applied to whichever mix a musician is on. In **Templates**, the AUX menu is gone and there's a single **Add group** button.
+- Older templates that kept hidden channels and groups per mix become one layout, taken from the mix they were built on: their old starting AUX, or else the lowest mix with a layout. Their groups for that mix join the all-mix groups.
+
 ## 1.20.0 — 2026-11-22
 
 Product version: **1.20.0**. Node package version: **2.22.0**.

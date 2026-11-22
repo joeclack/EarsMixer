@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 1.20.0 — 2026-11-22
+
+Product version: **1.20.0**. Node package version: **2.22.0**.
+
+- When a phone opens a mix, the server tells it who else is on that mix and who last changed it, if that was within the last two hours. The app uses this to warn musicians that someone else is using the mix. The server keeps only the last change per mix, in memory. Phones never see each other's device IDs, just a nickname, how long ago and whether the change was their own.
+- Other connections from the same device no longer count as someone else on the mix.
+
 ## 1.19.0 — 2026-11-22
 
 Product version: **1.19.0**. Node package version: **2.21.0**.

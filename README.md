@@ -67,7 +67,7 @@ For a console-connected source deployment, configure the server and run `npm sta
 - `npm run installer:windows` builds the Windows installer into `dist/`; requires Inno Setup 6.7+ and the Windows .NET Framework C# compiler.
 - `npm run installer:macos` builds the macOS dmg into `dist/`; run it on a Mac with the Xcode command line tools and Python 3.9 or later. The disk image window (background with a drag-to-Applications arrow, icon positions) is made with [dmgbuild](https://github.com/dmgbuild/dmgbuild), installed with pinned hashes from [macos/dmg-requirements.txt](macos/dmg-requirements.txt) into `dist/dmgbuild-venv`. The background is drawn by [macos/dmg-background.swift](macos/dmg-background.swift) and the layout is in [macos/dmg-settings.py](macos/dmg-settings.py).
 - GitHub Actions builds release installers from `main`; feature branches remain unpublished until merged. Product metadata and the release tag version come from [installer/version.inc.iss](installer/version.inc.iss).
-- Product version (Windows and macOS): **1.19.0**. Node package version: **2.21.0**, maintained in its separate upstream series.
+- Product version (Windows and macOS): **1.20.0**. Node package version: **2.22.0**, maintained in its separate upstream series.
 
 ### Signing the macOS app
 

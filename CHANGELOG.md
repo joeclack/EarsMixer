@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 1.22.0 — 2026-11-23
+
+Product version: **1.22.0**. Node package version: **2.24.0**.
+
+- Linked channels. In **Desk settings › Linked channels**, the admin can link two channels, such as a guitar's left and right, and give them one name, such as Guitar 1. Musicians using EarsMixer app 1.0.0 or later get one fader for both.
+- Linking sets both channels to the level halfway between them in every mix, for example -1 dB and +1 dB meet at 0 dB. Levels the server hasn't loaded yet are asked for from the desk first.
+- After that, a musician's level or mute change on either channel is copied to the other, from the app, the browser mixer or older apps. Pan stays per channel, so a stereo pair keeps its left and right. Changes made on the desk itself aren't copied.
+- The mix sent to phones lists links whose channels are both shown. Links are saved with the current settings and in presets; loading a preset brings its links to the same level.
+
 ## 1.21.0 — 2026-11-22
 
 Product version: **1.21.0**. Node package version: **2.23.0**.

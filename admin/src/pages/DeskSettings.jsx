@@ -8,7 +8,7 @@ import { arrowMove, useSortable } from "../sortable.js";
 import { move } from "../templates-model.mjs";
 import { Button, Empty, Grip, Message, Panel } from "../ui.jsx";
 
-const sections = [["connection", "Connection"], ["aux", "AUX mixes"], ["channels", "Channels"], ["external", "External devices"], ["presets", "Presets"]];
+const sections = [["connection", "Connection"], ["aux", "AUX mixes"], ["channels", "Channels"], ["links", "Linked channels"], ["external", "External devices"], ["presets", "Presets"]];
 const validPort = value => /^\d+$/.test(String(value)) && Number(value) >= 1 && Number(value) <= 65535;
 
 async function loadSettings() {
@@ -133,6 +133,57 @@ function Presets({ onLoaded, disabled }) {
   </Panel>;
 }
 
+// A link's suggested name: the first channel's name without a trailing left or right, so "Gtr 1 L" becomes "Gtr 1".
+const pairName = label => label.replace(/[\s_-]+\(?(?:l|r|left|right)\)?$/i, "").trim() || label;
+
+function LinkedChannels({ disabled }) {
+  const [data, setData] = useState(null);
+  const [first, setFirst] = useState("");
+  const [second, setSecond] = useState("");
+  const [name, setName] = useState("");
+  const [named, setNamed] = useState(false);
+  const { busy, message, run } = useAction();
+  const refresh = () => api("/api/admin/links").then(setData);
+  useEffect(() => { void run(refresh); }, []);
+  const linked = new Set((data?.links || []).flatMap(link => link.channels));
+  const free = (data?.channels || []).filter(channel => !linked.has(channel.channel));
+  const label = number => data?.channels.find(channel => channel.channel === Number(number))?.label ?? "";
+  const chooseFirst = value => { setFirst(value); if (!named) setName(value ? pairName(label(value)) : ""); };
+  const create = async event => {
+    event.preventDefault();
+    if (await run(() => api("/api/admin/links", { method: "POST", body: { name: name.trim(), channels: [Number(first), Number(second)] } }),
+      "Linked. Both channels now share the same level, and devices are reconnecting.")) {
+      setFirst(""); setSecond(""); setName(""); setNamed(false); await refresh();
+    }
+  };
+  const remove = async link => {
+    if (!window.confirm("Unlink “" + link.name + "”? Musicians get a fader for each channel again, starting at their current levels. Devices reconnect for a moment.")) return;
+    if (await run(() => api("/api/admin/links/" + encodeURIComponent(link.id), { method: "DELETE" }), "Unlinked “" + link.name + "”.")) await refresh();
+  };
+  const option = channel => <option key={channel.channel} value={channel.channel}>{String(channel.channel).padStart(2, "0")} {channel.label}</option>;
+  return <Panel title="Linked channels" meta={data ? data.links.length + " linked" : ""} flush>
+    <p className="hint">Link two channels, such as a guitar’s left and right, and musicians get one fader for both. Linking sets both channels to the level halfway between them in every mix, then keeps their levels and mutes together. Pan stays separate, so a stereo pair keeps its left and right.</p>
+    <form className="inline-form padded" onSubmit={create}>
+      <label className="field grow">First channel<select value={first} required disabled={disabled} onChange={event => chooseFirst(event.currentTarget.value)}>
+        <option value="">Choose…</option>{free.map(option)}</select></label>
+      <label className="field grow">Second channel<select value={second} required disabled={disabled} onChange={event => setSecond(event.currentTarget.value)}>
+        <option value="">Choose…</option>{free.filter(channel => channel.channel !== Number(first)).map(option)}</select></label>
+      <Field label="Name musicians see" className="grow" value={name} maxLength={40} required placeholder="Guitar 1" disabled={disabled}
+        onInput={event => { setName(event.currentTarget.value); setNamed(true); }} />
+      <Button kind="primary" type="submit" disabled={busy || disabled || !first || !second || !name.trim()}>Link channels</Button>
+    </form>
+    {disabled ? <p className="hint">Save or discard your other changes first.</p> : null}
+    <div className="message-row"><Message message={message} /></div>
+    {data === null ? <Empty>Loading…</Empty> : data.links.length ? <ul className="preset-list">
+      {data.links.map(link => <li key={link.id}>
+        <span className="grow"><span className="strong">{link.name}</span><br />
+          <span className="muted small">{link.channels.map((channel, index) => String(channel).padStart(2, "0") + " " + link.labels[index]).join(" + ")}</span></span>
+        <Button kind="danger" disabled={busy || disabled} onClick={() => remove(link)}>Unlink</Button>
+      </li>)}
+    </ul> : <Empty>{data.channels.length ? "No linked channels." : "Waiting for the desk to report its channels."}</Empty>}
+  </Panel>;
+}
+
 export function DeskSettings({ status, reload }) {
   const [section, setSection] = useState(() => sessionStorage.getItem("adminDeskSection") || "connection");
   const [form, setForm] = useState(null);
@@ -254,6 +305,8 @@ export function DeskSettings({ status, reload }) {
           </tr>)}</tbody>
         </table></div> : <Empty>No external devices.</Empty>}
       </Panel> : null}
+
+      {section === "links" ? <LinkedChannels disabled={dirty} /> : null}
 
       {section === "presets" ? <Presets disabled={dirty} onLoaded={async () => { await load(); await reload(); }} /> : null}
 

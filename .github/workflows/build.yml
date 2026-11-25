@@ -202,6 +202,10 @@ jobs:
           done
           cat "$home/out.log"; kill $pid || true; exit 1
 
+      - name: Verify notarised disk image for R2
+        if: vars.R2_BUCKET != '' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: xcrun stapler validate dist/EarsMixer-*-macos.dmg
+
       - name: Upload macOS app
         uses: actions/upload-artifact@v4
         with:
@@ -215,7 +219,7 @@ jobs:
           retention-days: 30
 
   release:
-    name: Publish Windows release
+    name: Publish installers
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: [build, windows-installer, macos-app]
     runs-on: windows-2025
@@ -246,3 +250,53 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: ./tools/publish-windows-release.ps1 -Repository $env:GITHUB_REPOSITORY -Commit $env:GITHUB_SHA
+
+      - name: Upload installers to Cloudflare R2
+        if: vars.R2_BUCKET != ''
+        shell: pwsh
+        env:
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+          R2_S3_ENDPOINT: ${{ vars.R2_S3_ENDPOINT }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+        run: |
+          if (!$env:R2_S3_ENDPOINT -or !$env:AWS_ACCESS_KEY_ID -or !$env:AWS_SECRET_ACCESS_KEY) {
+            throw 'R2_BUCKET is set. Configure R2_S3_ENDPOINT, R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY before publishing to R2.'
+          }
+
+          $main = git ls-remote --exit-code origin refs/heads/main
+          if ($LASTEXITCODE -ne 0) { throw 'Could not check the latest main commit.' }
+          if (($main -split '\s+')[0] -ne $env:GITHUB_SHA) {
+            Write-Host 'A newer commit is on main. Skipping the R2 upload for this run.'
+            exit 0
+          }
+
+          $windows = @(Get-ChildItem -LiteralPath dist -Filter '*-windows-x64-setup.exe' -File)
+          if ($windows.Count -ne 1 -or $windows[0].Name -cnotmatch '^EarsMixer-(\d+\.\d+\.\d+)-windows-x64-setup\.exe$') {
+            throw 'Expected exactly one versioned EarsMixer Windows installer.'
+          }
+          $version = $Matches[1]
+          $mac = Get-Item -LiteralPath "dist/EarsMixer-$version-macos.dmg"
+          $installers = @($windows[0], $mac)
+          foreach ($installer in $installers) {
+            if ($installer.PSIsContainer -or $installer.Length -le 0) {
+              throw "Expected a non-empty installer at $($installer.FullName)."
+            }
+          }
+
+          # Give reruns their own keys so a partial upload leaves the previous pair available.
+          $build = "$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          foreach ($installer in $installers) {
+            $objectKey = "releases/v$version/$build/$($installer.Name)"
+            aws s3 cp $installer.FullName "s3://$env:R2_BUCKET/$objectKey" --endpoint-url $env:R2_S3_ENDPOINT --content-type application/octet-stream --cache-control 'public, max-age=86400' --only-show-errors
+            if ($LASTEXITCODE -ne 0) { throw "R2 upload failed for $objectKey." }
+            Write-Host "Uploaded $objectKey to R2."
+          }
+
+          $manifest = Join-Path $env:RUNNER_TEMP latest.json
+          @{ version = $version; build = $build } | ConvertTo-Json -Compress | Set-Content -LiteralPath $manifest -Encoding utf8
+          aws s3 cp $manifest "s3://$env:R2_BUCKET/latest.json" --endpoint-url $env:R2_S3_ENDPOINT --content-type application/json --cache-control no-store --only-show-errors
+          if ($LASTEXITCODE -ne 0) { throw 'R2 upload failed for latest.json.' }
+          Write-Host "Published v$version as the latest R2 download."

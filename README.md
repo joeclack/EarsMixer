@@ -69,6 +69,21 @@ For a console-connected source deployment, configure the server and run `npm sta
 - GitHub Actions builds release installers from `main`; feature branches remain unpublished until merged. Product metadata and the release tag version come from [installer/version.inc.iss](installer/version.inc.iss).
 - Product version (Windows and macOS): **1.22.0**. Node package version: **2.24.0**, maintained in its separate upstream series.
 
+### Cloudflare R2 installer uploads
+
+The release job can also upload the Windows installer and notarised macOS disk image to a Cloudflare R2 Standard bucket. In Cloudflare, create the bucket and an R2 API token with **Object Read & Write** access scoped to that bucket. Copy the S3 endpoint, access key ID and secret access key from Cloudflare. [R2 setup](https://developers.cloudflare.com/r2/get-started/s3/)
+
+Add these under **Settings → Secrets and variables → Actions** in the server repository. Set `R2_BUCKET` last to enable uploads once the other values are in place.
+
+| GitHub Actions setting | Value |
+| --- | --- |
+| Variable `R2_S3_ENDPOINT` | The bucket's Cloudflare S3 API endpoint, such as `https://<account-id>.r2.cloudflarestorage.com` |
+| Secret `R2_ACCESS_KEY_ID` | The R2 access key ID |
+| Secret `R2_SECRET_ACCESS_KEY` | The R2 secret access key |
+| Variable `R2_BUCKET` | The bucket name |
+
+After configuration, run **build-and-package** on `main` or let the next push to `main` publish the installers. The job stores each build under `releases/v<version>/<run-id>-<attempt>/` and writes `latest.json` at the bucket root after both uploads succeed. The website uses that manifest to select the current installer files. Connect `downloads.earsmixer.app` as a public custom domain on this bucket when ready to serve downloads. GitHub Releases continues to serve the existing Windows update check and macOS appcast. [R2 custom domains](https://developers.cloudflare.com/r2/buckets/public-buckets/)
+
 ### Signing the macOS app
 
 Release builds of the macOS app are signed with a Developer ID certificate, run with the hardened runtime and are notarised by Apple, so the dmg opens without Gatekeeper warnings. GitHub Actions does this on `main` and manual runs when these repository secrets are set. Without them, and on pull requests, the app is signed ad hoc and macOS warns when it's opened.

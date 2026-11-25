@@ -148,7 +148,6 @@ jobs:
           MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
-          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
           keychain="$RUNNER_TEMP/signing.keychain-db"
           keychain_password=$(openssl rand -base64 24)
@@ -165,13 +164,6 @@ jobs:
           echo "MACOS_SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
           printf '%s\n' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/notary-key.p8"
           echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/notary-key.p8" >> "$GITHUB_ENV"
-          # Signs the dmg and appcast for Sparkle updates. Without it no appcast is published.
-          if [ -n "$SPARKLE_PRIVATE_KEY" ]; then
-            (umask 077; printf '%s' "$SPARKLE_PRIVATE_KEY" > "$RUNNER_TEMP/sparkle-key")
-            echo "SPARKLE_PRIVATE_KEY_PATH=$RUNNER_TEMP/sparkle-key" >> "$GITHUB_ENV"
-          else
-            echo "::warning::SPARKLE_PRIVATE_KEY is not set, so installed apps won't be offered this release as an update."
-          fi
 
       - name: Build macOS app
         env:
@@ -189,7 +181,7 @@ jobs:
         if: always() && env.SIGN_FOR_RELEASE == 'true'
         run: |
           security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
-          rm -f "$RUNNER_TEMP/notary-key.p8" "$RUNNER_TEMP/sparkle-key"
+          rm -f "$RUNNER_TEMP/notary-key.p8"
 
       - name: Check the server starts
         run: |
@@ -202,18 +194,11 @@ jobs:
           done
           cat "$home/out.log"; kill $pid || true; exit 1
 
-      - name: Verify notarised disk image for R2
-        if: vars.R2_BUCKET != '' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        run: xcrun stapler validate dist/EarsMixer-*-macos.dmg
-
       - name: Upload macOS app
         uses: actions/upload-artifact@v4
         with:
           name: EarsMixer-macos-app
-          # appcast.xml exists only for signed release builds with the Sparkle key.
-          path: |
-            dist/*-macos.dmg
-            dist/appcast.xml
+          path: dist/*-macos.dmg
           if-no-files-found: error
           compression-level: 0
           retention-days: 30
@@ -222,7 +207,8 @@ jobs:
     name: Publish installers
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: [build, windows-installer, macos-app]
-    runs-on: windows-2025
+    # Sparkle's sign_update tool runs on macOS.
+    runs-on: macos-15
     permissions:
       contents: write
     concurrency:
@@ -245,13 +231,27 @@ jobs:
           name: EarsMixer-macos-app
           path: dist
 
-      - name: Publish versioned release
-        shell: pwsh
+      - name: Sign Sparkle appcast
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: ./tools/publish-windows-release.ps1 -Repository $env:GITHUB_REPOSITORY -Commit $env:GITHUB_SHA
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          SIGN_FOR_RELEASE: ${{ secrets.MACOS_CERTIFICATE_P12 != '' && secrets.APPLE_API_KEY_P8 != '' }}
+        run: |
+          if [ "$SIGN_FOR_RELEASE" != 'true' ] || [ -z "$SPARKLE_PRIVATE_KEY" ]; then
+            if [ -n "$R2_BUCKET" ]; then
+              echo '::error::R2 publishing requires a notarised macOS installer and SPARKLE_PRIVATE_KEY.'
+              exit 1
+            fi
+            echo '::warning::Sparkle signing is unavailable for this build.'
+            exit 0
+          fi
+          keyfile=$(mktemp "$RUNNER_TEMP/sparkle-key.XXXXXX")
+          trap 'rm -f "$keyfile"' EXIT
+          printf '%s\n' "$SPARKLE_PRIVATE_KEY" > "$keyfile"
+          SPARKLE_PRIVATE_KEY_PATH="$keyfile" node tools/build-macos.cjs --release-appcast
 
       - name: Upload installers to Cloudflare R2
+        id: r2
         if: vars.R2_BUCKET != ''
         shell: pwsh
         env:
@@ -295,8 +295,19 @@ jobs:
             Write-Host "Uploaded $objectKey to R2."
           }
 
+          aws s3 cp dist/appcast.xml "s3://$env:R2_BUCKET/appcast.xml" --endpoint-url $env:R2_S3_ENDPOINT --content-type application/xml --cache-control no-store --only-show-errors
+          if ($LASTEXITCODE -ne 0) { throw 'R2 upload failed for appcast.xml.' }
+
           $manifest = Join-Path $env:RUNNER_TEMP latest.json
           @{ version = $version; build = $build } | ConvertTo-Json -Compress | Set-Content -LiteralPath $manifest -Encoding utf8
           aws s3 cp $manifest "s3://$env:R2_BUCKET/latest.json" --endpoint-url $env:R2_S3_ENDPOINT --content-type application/json --cache-control no-store --only-show-errors
           if ($LASTEXITCODE -ne 0) { throw 'R2 upload failed for latest.json.' }
           Write-Host "Published v$version as the latest R2 download."
+          'published=true' >> $env:GITHUB_OUTPUT
+
+      - name: Publish versioned release
+        if: vars.R2_BUCKET == '' || steps.r2.outputs.published == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./tools/publish-windows-release.ps1 -Repository $env:GITHUB_REPOSITORY -Commit $env:GITHUB_SHA

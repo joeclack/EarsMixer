@@ -67,7 +67,7 @@ For a console-connected source deployment, configure the server and run `npm sta
 - `npm run installer:windows` builds the Windows installer into `dist/`; requires Inno Setup 6.7+ and the Windows .NET Framework C# compiler.
 - `npm run installer:macos` builds the macOS dmg into `dist/`; run it on a Mac with the Xcode command line tools and Python 3.9 or later. The disk image window (background with a drag-to-Applications arrow, icon positions) is made with [dmgbuild](https://github.com/dmgbuild/dmgbuild), installed with pinned hashes from [macos/dmg-requirements.txt](macos/dmg-requirements.txt) into `dist/dmgbuild-venv`. The background is drawn by [macos/dmg-background.swift](macos/dmg-background.swift) and the layout is in [macos/dmg-settings.py](macos/dmg-settings.py).
 - GitHub Actions builds release installers from `main`; feature branches remain unpublished until merged. Product metadata and the release tag version come from [installer/version.inc.iss](installer/version.inc.iss).
-- Product version (Windows and macOS): **1.22.0**. Node package version: **2.24.0**, maintained in its separate upstream series.
+- Product version (Windows and macOS): **1.22.1**. Node package version: **2.24.0**, maintained in its separate upstream series.
 
 ### Cloudflare R2 installer uploads
 
@@ -82,7 +82,7 @@ Add these under **Settings → Secrets and variables → Actions** in the server
 | Secret `R2_SECRET_ACCESS_KEY` | The R2 secret access key |
 | Variable `R2_BUCKET` | The bucket name |
 
-After configuration, run **build-and-package** on `main` or let the next push to `main` publish the installers. The job stores each build under `releases/v<version>/<run-id>-<attempt>/` and writes `latest.json` at the bucket root after both uploads succeed. The website uses that manifest to select the current installer files. Connect `downloads.earsmixer.app` as a public custom domain on this bucket when ready to serve downloads. GitHub Releases continues to serve the existing Windows update check and macOS appcast. [R2 custom domains](https://developers.cloudflare.com/r2/buckets/public-buckets/)
+After configuration, run **build-and-package** on `main` or let the next push to `main` publish the installers. The job stores each build under `releases/v<version>/<run-id>-<attempt>/` and uploads the signed `appcast.xml` and `latest.json` after both installers are available. The website uses `latest.json` to select the current installers. Connect `downloads.earsmixer.app` as the public custom domain for the bucket. [R2 custom domains](https://developers.cloudflare.com/r2/buckets/public-buckets/)
 
 ### Signing the macOS app
 
@@ -107,7 +107,9 @@ To sign locally, install the certificate in your login keychain and run `npm run
 
 ### One-click updates (macOS)
 
-The macOS app uses [Sparkle](https://sparkle-project.org) 2.10.1. The build downloads it into `dist/sparkle-cache`, checks it against a pinned SHA-256, and embeds it without its XPC services, which only sandboxed apps need. The app reads `appcast.xml` from the latest GitHub release (`SUFeedURL`) and installs only updates whose `.dmg` and feed are signed with the EdDSA key matching [macos/sparkle-public-key.txt](macos/sparkle-public-key.txt) (`SURequireSignedFeed`). Release builds write the appcast from the stapled `.dmg` and the matching [CHANGELOG](CHANGELOG.md) section, and the release job publishes it with the installers.
+The macOS app uses [Sparkle](https://sparkle-project.org) 2.10.1. The build downloads it into `dist/sparkle-cache`, checks it against a pinned SHA-256, and embeds it without its XPC services, which only sandboxed apps need. Starting with 1.22.1, `SUFeedURL` points to `https://downloads.earsmixer.app/appcast.xml`. Sparkle verifies the feed and `.dmg` using the EdDSA key matching [macos/sparkle-public-key.txt](macos/sparkle-public-key.txt). The release job signs the stapled `.dmg` and appcast, publishes them to R2, and then adds the same appcast to the GitHub release.
+
+Copies older than 1.22.1 check GitHub. Install the current macOS version from the website once to switch feeds.
 
 To create the signing key, once, on a Mac with the Sparkle download in `dist/sparkle-cache` (run `npm run installer:macos` or let a build fetch it first):
 

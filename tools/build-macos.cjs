@@ -35,7 +35,8 @@ const crypto = require("node:crypto");
 
 const SPARKLE_VERSION = "2.10.1";
 const SPARKLE_SHA256 = "1a856d2a9edb8e628de88121d7be04cf0e2167f8641650b78fca00b14244cf27";
-const SPARKLE_FEED = "https://github.com/joeclack/EarsMixer/releases/latest/download/appcast.xml";
+const DOWNLOADS = "https://downloads.earsmixer.app";
+const SPARKLE_FEED = `${DOWNLOADS}/appcast.xml`;
 const RELEASES = "https://github.com/joeclack/EarsMixer/releases";
 const sparklePublicKeyFile = path.join(root, "macos", "sparkle-public-key.txt");
 
@@ -96,37 +97,53 @@ function releaseNotesHtml(version) {
     return items.length ? `<ul>${items.join("")}</ul>` : `<p>EarsMixer ${escapeXml(version)}</p>`;
 }
 
-/** Signs the dmg for Sparkle and writes dist/appcast.xml describing this release. */
-function writeAppcast(dmg, version, sparkle, keyFile) {
+/** Signs the dmg for Sparkle and writes appcast.xml next to it. */
+function writeAppcast(dmg, version, sparkle, keyFile, url = `${RELEASES}/download/v${version}/${path.basename(dmg)}`) {
     const result = spawnSync(path.join(sparkle, "bin", "sign_update"), ["--ed-key-file", keyFile, dmg], { cwd: root, encoding: "utf8" });
+    if (result.error) throw result.error;
     if (result.status !== 0) throw new Error("sign_update failed: " + (result.stderr || result.stdout).trim());
     const signature = /sparkle:edSignature="([^"]+)"/.exec(result.stdout)?.[1];
     const length = /length="(\d+)"/.exec(result.stdout)?.[1];
     if (!signature || !length) throw new Error("sign_update gave no signature: " + result.stdout.trim());
-    const url = `${RELEASES}/download/v${version}/${path.basename(dmg)}`;
     const appcast = `<?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
   <channel>
     <title>EarsMixer</title>
-    <link>${RELEASES}</link>
+    <link>https://earsmixer.app/</link>
     <item>
       <title>EarsMixer ${escapeXml(version)}</title>
       <pubDate>${new Date().toUTCString()}</pubDate>
       <sparkle:version>${escapeXml(version)}</sparkle:version>
       <sparkle:shortVersionString>${escapeXml(version)}</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-      <sparkle:fullReleaseNotesLink>${RELEASES}/tag/v${escapeXml(version)}</sparkle:fullReleaseNotesLink>
       <description><![CDATA[${releaseNotesHtml(version).replace(/]]>/g, "]]&gt;")}]]></description>
       <enclosure url="${escapeXml(url)}" length="${length}" type="application/octet-stream" sparkle:edSignature="${escapeXml(signature)}"/>
     </item>
   </channel>
 </rss>
 `;
-    const feed = path.join(root, "dist", "appcast.xml");
+    const feed = path.join(path.dirname(dmg), "appcast.xml");
     fs.writeFileSync(feed, appcast);
     // Sign the feed too (SURequireSignedFeed), so its release notes and links can't be altered.
     run(path.join(sparkle, "bin", "sign_update"), ["--ed-key-file", keyFile, feed]);
     console.log("Sparkle appcast: dist/appcast.xml");
+}
+
+// The release job signs after downloading the artifacts so a retry can embed its own R2 object path.
+function writeReleaseAppcast() {
+    const version = productVersion();
+    const name = `EarsMixer-${version}-macos.dmg`;
+    const dmg = path.join(root, "dist", name);
+    const keyFile = process.env.SPARKLE_PRIVATE_KEY_PATH;
+    if (!keyFile) throw new Error("SPARKLE_PRIVATE_KEY_PATH is required to sign the appcast.");
+    run("xcrun", ["stapler", "validate", dmg]);
+    let url;
+    if (process.env.R2_BUCKET) {
+        const build = `${process.env.GITHUB_RUN_ID}-${process.env.GITHUB_RUN_ATTEMPT}`;
+        if (!/^\d+-\d+$/.test(build)) throw new Error("GitHub Actions run ID and attempt are required for the R2 appcast.");
+        url = `${DOWNLOADS}/releases/v${version}/${build}/${name}`;
+    }
+    writeAppcast(dmg, version, sparkleDirectory(), keyFile, url);
 }
 
 /**
@@ -347,5 +364,11 @@ function notarise(dmg, env = process.env) {
 module.exports = { signingOptions, releaseNotesHtml, sparklePublicKey, sparkleDirectory, writeAppcast, infoPlist, makeDmg };
 
 if (require.main === module) {
-    try { main(); } catch (error) { console.error(error.message); process.exitCode = 1; }
+    try {
+        if (process.argv[2] === "--release-appcast") writeReleaseAppcast();
+        else main();
+    } catch (error) {
+        console.error(error.message);
+        process.exitCode = 1;
+    }
 }

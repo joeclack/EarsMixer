@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.22.1 — 2026-11-25
+
+Product version: **1.22.1**. Node package version: **2.24.0**.
+
+- macOS now checks for updates on earsmixer.app. Install this version once from the website to switch your copy to the new update feed.
+
 ## 1.22.0 — 2026-11-23
 
 Product version: **1.22.0**. Node package version: **2.24.0**.

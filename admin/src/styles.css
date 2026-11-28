@@ -126,6 +126,7 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent);
 .sub-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 48px; padding: 6px 16px; border-bottom: 1px solid var(--line); }
 .sub-head h3 { flex: 1 1 auto; font-size: 13px; font-weight: 600; }
 .hint { padding: 10px 16px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+.warning-hint { color: var(--warn); border-top: 1px solid var(--line); border-bottom: 0; } .warning-hint a { color: inherit; }
 .channel-row { display: grid; grid-template-columns: 36px 28px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 46px; padding: 0 12px 0 4px; border-bottom: 1px solid var(--line); background: var(--panel); }
 .channel-inside { grid-template-columns: 22px 36px 28px minmax(0, 1fr) auto; background: #101214; }
 .channel-row .number { margin: 0; }

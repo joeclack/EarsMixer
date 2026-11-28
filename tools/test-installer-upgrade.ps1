@@ -30,6 +30,23 @@ function Assert-True([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw $Message }
 }
 
+# The data folder holds the desk settings, admin password and connection PIN,
+# so ordinary users must not be able to change anything there; only
+# administrators and the service may.
+function Assert-UsersReadOnly {
+    $write = [Security.AccessControl.FileSystemRights]'WriteData, AppendData, WriteExtendedAttributes, WriteAttributes, Delete, ChangePermissions, TakeOwnership'
+    foreach ($path in @($dataDirectory, (Join-Path $dataDirectory 'config'), $templatePath)) {
+        $acl = Get-Acl -LiteralPath $path
+        foreach ($rule in $acl.Access) {
+            $sid = try { $rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value } catch { $rule.IdentityReference.Value }
+            if ($rule.AccessControlType -ne 'Allow' -or $sid -in @('S-1-5-18', 'S-1-5-32-544', 'S-1-5-19')) { continue }
+            Assert-True (($rule.FileSystemRights -band $write) -eq 0) "$($rule.IdentityReference) can change $path."
+        }
+        $owner = (New-Object Security.Principal.NTAccount($acl.Owner)).Translate([Security.Principal.SecurityIdentifier]).Value
+        Assert-True ($owner -in @('S-1-5-18', 'S-1-5-32-544')) "$path is owned by $($acl.Owner)."
+    }
+}
+
 function Invoke-Setup([string]$Name, [string[]]$ExtraArguments = @(), [bool]$ExpectSuccess = $true) {
     Write-Host "Starting installer check: $Name"
     $elapsed = [Diagnostics.Stopwatch]::StartNew()
@@ -71,9 +88,7 @@ try {
     $config = '{"debug":false,"server":{"port":18081},"osc":{"port":18082},"desk":{"ip":"","port":19000},"externalDevices":[]}'
     [IO.File]::WriteAllText($configPath, $config)
     $templatePath = Join-Path $dataDirectory 'data\upgrade-test.txt'
-    $pluginPath = Join-Path $dataDirectory 'plugins\upgrade-test.txt'
     [IO.File]::WriteAllText($templatePath, 'saved template')
-    [IO.File]::WriteAllText($pluginPath, 'saved plugin')
     $xmlPath = Join-Path $installDirectory 'EarsMixerService.xml'
     $xml = [IO.File]::ReadAllText($xmlPath).Replace('</service>', '<!-- keep custom service settings --></service>')
     [IO.File]::WriteAllText($xmlPath, $xml)
@@ -95,8 +110,9 @@ try {
     Assert-Running
     Assert-True ([IO.File]::ReadAllText($configPath) -eq $config) 'Saved mixer configuration changed.'
     Assert-True ([IO.File]::ReadAllText($templatePath) -eq 'saved template') 'Saved data changed.'
-    Assert-True ([IO.File]::ReadAllText($pluginPath) -eq 'saved plugin') 'Saved plugin changed.'
     Assert-True ([IO.File]::ReadAllText($xmlPath) -eq $xml) 'Custom service XML changed.'
+    Assert-UsersReadOnly
+
 
     # Legacy product names must migrate even when the install directory is reused.
     Stop-Service EarsMixer

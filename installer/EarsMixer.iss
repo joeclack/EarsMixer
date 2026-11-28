@@ -48,12 +48,13 @@ Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\EarsMixer tray"; Filename: "{app}\EarsMixerTray.exe"; WorkingDir: "{app}"; IconFilename: "{app}\favicon.ico"
-Name: "{group}\Settings and plugins"; Filename: "{commonappdata}\EarsMixer"
+Name: "{group}\Settings folder"; Filename: "{commonappdata}\EarsMixer"
 Name: "{group}\Uninstall EarsMixer"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\EarsMixer Service Manager"; Filename: "{app}\EarsMixerTray.exe"; WorkingDir: "{app}"; IconFilename: "{app}\favicon.ico"; Tasks: desktopicon
 Name: "{commonstartup}\EarsMixer tray"; Filename: "{app}\EarsMixerTray.exe"; WorkingDir: "{app}"; Tasks: traystartup
 
 [InstallDelete]
+Type: files; Name: "{group}\Settings and plugins.lnk"
 Type: files; Name: "{autodesktop}\Ears Mixer.lnk"; Tasks: desktopicon
 Type: files; Name: "{autodesktop}\Start Ears Mixer Tray App.lnk"; Tasks: desktopicon
 Type: files; Name: "{commonstartup}\Ears Mixer tray.lnk"
@@ -68,10 +69,9 @@ Type: files; Name: "{commonprograms}\OSCWebMixer2 - Ears Mixer\Uninstall Ears Mi
 
 [Dirs]
 ; Runtime data lives outside {app} and is retained on uninstall.
-Name: "{commonappdata}\EarsMixer"; Permissions: users-readexec; Flags: uninsneveruninstall
+Name: "{commonappdata}\EarsMixer"; Flags: uninsneveruninstall
 Name: "{commonappdata}\EarsMixer\config"; Flags: uninsneveruninstall
 Name: "{commonappdata}\EarsMixer\data"; Flags: uninsneveruninstall
-Name: "{commonappdata}\EarsMixer\plugins"; Flags: uninsneveruninstall
 Name: "{commonappdata}\EarsMixer\logs"; Flags: uninsneveruninstall
 
 [Run]
@@ -178,7 +178,6 @@ procedure CopySettings(const Source, Destination: String);
 begin
   CopyTree(Source + '\config', Destination + '\config');
   CopyTree(Source + '\data', Destination + '\data');
-  CopyTree(Source + '\plugins', Destination + '\plugins');
   CopyTree(Source + '\logs', Destination + '\logs');
 end;
 
@@ -212,9 +211,22 @@ begin
   if MigrateLegacyServiceConfig or (ServiceXML <> String(LegacyXML)) then
     if not SaveStringToFile(ExpandConstant('{app}\EarsMixerService.xml'), ServiceXML, False) then
       RaiseException('Cannot migrate the previous service configuration.');
-  // LocalService can write runtime data, without running the server as SYSTEM.
-  if not RunChecked(ExpandConstant('{sys}\icacls.exe'), '"' + Home + '" /grant "*S-1-5-19:(OI)(CI)M" /T /Q') then
-    RaiseException('Cannot grant the EarsMixer service access to its settings.');
+  // This folder holds the desk settings, admin password and connection PIN, so
+  // only administrators may change it. ProgramData lets every user create
+  // files in new folders, so replace the inherited permissions: SYSTEM and
+  // Administrators have full
+  // control, LocalService (the service) can write runtime data without running
+  // as SYSTEM, and other users can only read. Everything inside, including
+  // files a user added before this version, is handed to Administrators and
+  // set to inherit these permissions.
+  Command := '"' + Home + '" /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" ' +
+    '"*S-1-5-19:(OI)(CI)M" "*S-1-5-32-545:(OI)(CI)RX" /Q';
+  if not RunChecked(ExpandConstant('{sys}\icacls.exe'), Command) then
+    RaiseException('Cannot set permissions on the EarsMixer settings folder.');
+  if not RunChecked(ExpandConstant('{sys}\icacls.exe'), '"' + Home + '" /setowner "*S-1-5-32-544" /T /C /Q') then
+    RaiseException('Cannot set the owner of the EarsMixer settings folder.');
+  if not RunChecked(ExpandConstant('{sys}\icacls.exe'), '"' + Home + '\*" /reset /T /C /Q') then
+    RaiseException('Cannot apply permissions inside the EarsMixer settings folder.');
   Wrapper := ExpandConstant('{app}\EarsMixerService.exe');
   if RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\EarsMixer') then
   begin

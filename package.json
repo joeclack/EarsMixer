@@ -4,7 +4,7 @@
     "engines": {
         "node": ">=22.13.0"
     },
-    "version": "2.24.0",
+    "version": "2.24.1",
     "description": "A server that allows web clients and other external devices to control their own mix for DiGiCo sound desks.",
     "author": "Marc Castles",
     "homepage": "https://github.com/joeclack/EarsMixer",
@@ -25,8 +25,7 @@
         "package": "npx pkg . --output \"dist/EarsMixer-${npm_package_version}\"",
         "installer:windows": "node tools/build-installer.cjs",
         "installer:macos": "node tools/build-macos.cjs",
-        "build:windows-support": "node tools/build-windows-support.cjs",
-        "package-plugins": "zip -r dist/EarsMixer-plugins-${npm_package_version}.zip plugins/"
+        "build:windows-support": "node tools/build-windows-support.cjs"
     },
     "license": "MIT",
     "keywords": [
@@ -44,11 +43,16 @@
     "dependencies": {
         "@homebridge/ciao": "^1.4.0",
         "colortranslator": "^6.1.1",
-        "express": "^4.22.1",
+        "express": "^4.22.3",
         "ora": "^5.4.1",
         "osc": "github:castles/osc.js",
         "qrcode": "^1.5.4",
         "ws": "8.21.3"
+    },
+    "overrides": {
+        "osc": {
+            "ws": "$ws"
+        }
     },
     "pkg": {
         "scripts": [

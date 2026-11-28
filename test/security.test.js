@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { allowedOscSource, sameOrigin, localRequest, createRateLimit, readExternalDevices } = require("../lib/server/security.js");
+const { allowedOscSource, sameOrigin, localRequest, createRateLimit, readExternalDevices, validAddress, trustedHost } = require("../lib/server/security.js");
 
 test("OSC is accepted only from the desk and configured external devices", () => {
   const config = { desk: { ip: "192.168.1.50" }, externalDevices: [{ ip: "192.168.1.60" }] };
@@ -47,4 +47,23 @@ test("external devices are validated as a whole", () => {
   assert.deepEqual(readExternalDevices({ ...body, externalIP: ["lights.local"] })[0].ip, "lights.local");
   for (const bad of [{ externalIP: ["not an address"] }, { externalReceive: ["70000"] }, { externalName: [""] }, { externalName: "Lights" }, { externalIP: [] }])
     assert.equal(readExternalDevices({ ...body, ...bad }), null);
+});
+
+test("admin requests must use a name this server answers to, not a website's domain", () => {
+  const request = host => ({ headers: host === undefined ? {} : { host } });
+  const options = { computerName: "Sound-Desk-PC", publicUrl: undefined };
+  const config = { server: { publicUrl: "https://mixer.example.org" } };
+  for (const host of [undefined, "192.168.1.10", "192.168.1.10:8082", "[::1]:80", "[fe80::1]", "localhost:8082",
+    "earsmixer", "sound-desk-pc", "Sound-Desk-PC.local", "mixer.local.", "foh.lan", "mixer.home.arpa", "mixer.example.org"])
+    assert.equal(trustedHost(request(host), config, options), true, String(host));
+  // A DNS rebinding page arrives with its own domain as the Host.
+  for (const host of ["evil.example", "evil.example:8082", "192.168.1.10.nip.io", "mixer.example.org.evil.example", "local.evil.example", "bad host"])
+    assert.equal(trustedHost(request(host), config, options), false, host);
+  assert.equal(trustedHost(request("mixer.example.org"), {}, options), false);
+  assert.equal(trustedHost(request("mixer.example.org"), {}, { ...options, publicUrl: "http://mixer.example.org:8082" }), true);
+});
+
+test("a desk address is an IP address or a hostname", () => {
+  for (const value of ["192.168.1.50", "::1", "sd12.local", "desk"]) assert.equal(validAddress(value), true, value);
+  for (const value of ["", "desk address", "http://desk", "desk/1", 42, undefined]) assert.equal(validAddress(value), false, String(value));
 });

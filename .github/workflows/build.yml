@@ -48,12 +48,6 @@ jobs:
           name: EarsMixer-binaries
           path: dist/
 
-      - name: Upload plugins
-        uses: actions/upload-artifact@v4
-        with:
-          name: EarsMixer-plugins
-          path: plugins/
-
   windows-installer:
     name: Windows installer
     runs-on: windows-2025

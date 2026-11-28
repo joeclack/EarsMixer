@@ -9,7 +9,7 @@ process.env.OSC_WEBMIXER_CONFIG_DIR ||= path.join(root, "config");
 process.env.OSC_WEBMIXER_DATA_DIR ||= path.join(root, "data");
 process.chdir(root);
 console.log("EarsMixer");
-console.log("Settings and plugins: " + root);
+console.log("Settings: " + root);
 console.log("Open http://localhost/admin (include the port if you change it in Desk settings).");
 if (!process.env.OSC_WEBMIXER_SERVICE) console.log("Keep this window open while using the mixer. Press Ctrl+C to stop.\n");
 // The tray creates <home>\demo-mode for demo mode (see lib/demo-mode.js).

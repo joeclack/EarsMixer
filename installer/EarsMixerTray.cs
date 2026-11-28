@@ -209,7 +209,7 @@ namespace EarsMixer
             menu.Items.Add(demo);
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("Open logs", null, (s, e) => OpenFolder("logs"));
-            menu.Items.Add("Open settings and plugins", null, (s, e) => OpenFolder(""));
+            menu.Items.Add("Open settings folder", null, (s, e) => OpenFolder(""));
             menu.Items.Add(new ToolStripSeparator());
             checkUpdates = new ToolStripMenuItem("Check for updates...", null, async (s, e) => await CheckForUpdates(true));
             downloadUpdate = new ToolStripMenuItem("Download update...", null, (s, e) => OpenUpdate(false)) { Visible = false };

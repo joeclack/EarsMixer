@@ -48,12 +48,13 @@ Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\EarsMixer tray"; Filename: "{app}\EarsMixerTray.exe"; WorkingDir: "{app}"; IconFilename: "{app}\favicon.ico"
-Name: "{group}\Settings and plugins"; Filename: "{commonappdata}\EarsMixer"
+Name: "{group}\Settings folder"; Filename: "{commonappdata}\EarsMixer"
 Name: "{group}\Uninstall EarsMixer"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\EarsMixer Service Manager"; Filename: "{app}\EarsMixerTray.exe"; WorkingDir: "{app}"; IconFilename: "{app}\favicon.ico"; Tasks: desktopicon
 Name: "{commonstartup}\EarsMixer tray"; Filename: "{app}\EarsMixerTray.exe"; WorkingDir: "{app}"; Tasks: traystartup
 
 [InstallDelete]
+Type: files; Name: "{group}\Settings and plugins.lnk"
 Type: files; Name: "{autodesktop}\Ears Mixer.lnk"; Tasks: desktopicon
 Type: files; Name: "{autodesktop}\Start Ears Mixer Tray App.lnk"; Tasks: desktopicon
 Type: files; Name: "{commonstartup}\Ears Mixer tray.lnk"
@@ -71,7 +72,6 @@ Type: files; Name: "{commonprograms}\OSCWebMixer2 - Ears Mixer\Uninstall Ears Mi
 Name: "{commonappdata}\EarsMixer"; Flags: uninsneveruninstall
 Name: "{commonappdata}\EarsMixer\config"; Flags: uninsneveruninstall
 Name: "{commonappdata}\EarsMixer\data"; Flags: uninsneveruninstall
-Name: "{commonappdata}\EarsMixer\plugins"; Flags: uninsneveruninstall
 Name: "{commonappdata}\EarsMixer\logs"; Flags: uninsneveruninstall
 
 [Run]
@@ -178,7 +178,6 @@ procedure CopySettings(const Source, Destination: String);
 begin
   CopyTree(Source + '\config', Destination + '\config');
   CopyTree(Source + '\data', Destination + '\data');
-  CopyTree(Source + '\plugins', Destination + '\plugins');
   CopyTree(Source + '\logs', Destination + '\logs');
 end;
 

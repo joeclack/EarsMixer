@@ -88,9 +88,7 @@ try {
     $config = '{"debug":false,"server":{"port":18081},"osc":{"port":18082},"desk":{"ip":"","port":19000},"externalDevices":[]}'
     [IO.File]::WriteAllText($configPath, $config)
     $templatePath = Join-Path $dataDirectory 'data\upgrade-test.txt'
-    $pluginPath = Join-Path $dataDirectory 'plugins\upgrade-test.txt'
     [IO.File]::WriteAllText($templatePath, 'saved template')
-    [IO.File]::WriteAllText($pluginPath, 'saved plugin')
     $xmlPath = Join-Path $installDirectory 'EarsMixerService.xml'
     $xml = [IO.File]::ReadAllText($xmlPath).Replace('</service>', '<!-- keep custom service settings --></service>')
     [IO.File]::WriteAllText($xmlPath, $xml)
@@ -111,11 +109,10 @@ try {
     Invoke-Setup 'stopped-service-repair'
     Assert-Running
     Assert-True ([IO.File]::ReadAllText($configPath) -eq $config) 'Saved mixer configuration changed.'
+    Assert-True ([IO.File]::ReadAllText($templatePath) -eq 'saved template') 'Saved data changed.'
+    Assert-True ([IO.File]::ReadAllText($xmlPath) -eq $xml) 'Custom service XML changed.'
     Assert-UsersReadOnly
 
-    Assert-True ([IO.File]::ReadAllText($templatePath) -eq 'saved template') 'Saved data changed.'
-    Assert-True ([IO.File]::ReadAllText($pluginPath) -eq 'saved plugin') 'Saved plugin changed.'
-    Assert-True ([IO.File]::ReadAllText($xmlPath) -eq $xml) 'Custom service XML changed.'
 
     # Legacy product names must migrate even when the install directory is reused.
     Stop-Service EarsMixer

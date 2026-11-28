@@ -25,8 +25,7 @@
         "package": "npx pkg . --output \"dist/EarsMixer-${npm_package_version}\"",
         "installer:windows": "node tools/build-installer.cjs",
         "installer:macos": "node tools/build-macos.cjs",
-        "build:windows-support": "node tools/build-windows-support.cjs",
-        "package-plugins": "zip -r dist/EarsMixer-plugins-${npm_package_version}.zip plugins/"
+        "build:windows-support": "node tools/build-windows-support.cjs"
     },
     "license": "MIT",
     "keywords": [

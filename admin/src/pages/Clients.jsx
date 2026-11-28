@@ -57,6 +57,9 @@ export function Clients({ status, access, reloadAccess }) {
           <Button disabled={busy} onClick={changePin}>Change PIN</Button>
         </div> : null}
       </div>
+      {access.enabled && status && !status.adminPasswordEnabled
+        ? <p className="hint warning-hint" role="note">Anyone on this network can open this dashboard and read the PIN. Set an admin password in <a href="#system">System</a> so only you can see it.</p>
+        : null}
       <Message message={message} />
     </Panel>
     <Panel title="Devices" meta={rows.length + " known · " + connected + " connected"} flush>

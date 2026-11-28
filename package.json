@@ -44,11 +44,16 @@
     "dependencies": {
         "@homebridge/ciao": "^1.4.0",
         "colortranslator": "^6.1.1",
-        "express": "^4.22.1",
+        "express": "^4.22.3",
         "ora": "^5.4.1",
         "osc": "github:castles/osc.js",
         "qrcode": "^1.5.4",
         "ws": "8.21.3"
+    "overrides": {
+        "osc": {
+            "ws": "$ws"
+        }
+    },
     },
     "pkg": {
         "scripts": [

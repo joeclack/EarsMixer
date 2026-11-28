@@ -14,7 +14,7 @@ A local server connecting DiGiCo SD Series and Quantum consoles to the [EarsMixe
 
 - `index.js`, `lib/` — server, console integration and APIs.
 - `web/` — browser mixer and admin dashboard.
-- `config/`, `plugins/` — configuration and optional plugins.
+- `config/` — configuration.
 - `installer/` — Windows service/tray support and Inno Setup files.
 - `macos/` — macOS menu bar app.
 - `tools/` — demo console, development and packaging scripts.
@@ -26,6 +26,8 @@ A local server connecting DiGiCo SD Series and Quantum consoles to the [EarsMixe
 2. Open the admin dashboard from the EarsMixer tray icon.
 3. Configure the console IP/ports and available channels/AUXes. Set an admin password before use on a shared network.
 4. Connect musicians through the mobile app or the mixer URL/QR code.
+
+Settings and saved data are kept in `%ProgramData%\EarsMixer` (**Settings folder** in the Start menu). Only administrators and the service can change that folder.
 
 The server, console and musician devices need network access to one another. Configure the console's **DiGiCo iPad** external control, with matching OSC ports: server receive **8000/UDP**, console receive **9000/UDP** by default. S-Series consoles are not supported.
 
@@ -67,7 +69,7 @@ For a console-connected source deployment, configure the server and run `npm sta
 - `npm run installer:windows` builds the Windows installer into `dist/`; requires Inno Setup 6.7+ and the Windows .NET Framework C# compiler.
 - `npm run installer:macos` builds the macOS dmg into `dist/`; run it on a Mac with the Xcode command line tools and Python 3.9 or later. The disk image window (background with a drag-to-Applications arrow, icon positions) is made with [dmgbuild](https://github.com/dmgbuild/dmgbuild), installed with pinned hashes from [macos/dmg-requirements.txt](macos/dmg-requirements.txt) into `dist/dmgbuild-venv`. The background is drawn by [macos/dmg-background.swift](macos/dmg-background.swift) and the layout is in [macos/dmg-settings.py](macos/dmg-settings.py).
 - GitHub Actions builds release installers from `main`; feature branches remain unpublished until merged. Product metadata and the release tag version come from [installer/version.inc.iss](installer/version.inc.iss).
-- Product version (Windows and macOS): **1.22.1**. Node package version: **2.24.0**, maintained in its separate upstream series.
+- Product version (Windows and macOS): **1.22.2**. Node package version: **2.24.1**, maintained in its separate upstream series.
 
 ### Cloudflare R2 installer uploads
 

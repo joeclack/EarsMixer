@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## 1.22.2 — 2026-11-28
+
+Product version: **1.22.2**. Node package version: **2.24.1**.
+
+- Desk settings now save on large desks. Desks with more than about 150 channels were refused with "too many parameters", so their settings couldn't be changed.
+- A desk settings save is checked in full before anything changes. Before, a malformed save could change the desk address in the running server without saving it or reconnecting.
+- The desk address must be an IP address or a hostname.
+- The admin pages, settings and live view only answer requests addressed to this computer's IP address, its name, a local network name (such as `.local` or `.lan`) or the mixer link set in the admin page. This stops a website from reaching the admin by pointing its own domain at the server (DNS rebinding), which mattered most when no admin password is set. If you open the admin page through another DNS name, set it as the mixer link first.
+- **Clients › Mobile access** warns when a PIN is required but there is no admin password, because anyone on the network can then open the dashboard and read the PIN.
+- Plugins are removed. The server no longer loads or runs JavaScript from the `plugins` folder, so OSC messages are no longer passed to custom code. An existing `plugins` folder is left where it is but ignored. The plugin download from releases and the `package-plugins` script are gone, and the Windows Start menu and tray now say **Settings folder**.
+- Windows: only administrators and the service can change `%ProgramData%\EarsMixer`, which holds the desk settings, admin password and connection PIN. Before, any user on the computer could add files there. Installing or updating sets the folder's permissions again and hands files already in it to Administrators.
+- Settings files (`global.json`, `state.json` and `presets.json`) keep the previous copy as `.bak` each time they are saved. A file that can't be read is kept as `.damaged-<time>` and the backup is used, so a damaged file no longer stops the server starting or gets overwritten. With no backup, the server starts with default settings.
+- Dependencies: Express 4.22.3, which fixes the reported issues in its body parser, routing and proxy address handling. The OSC library now uses the server's own `ws` 8.21.3 instead of an older copy. `npm audit` reports no vulnerabilities.
+- Removed the unused HTTP Basic authentication module (`ADMIN_PASSWORD`). The admin password set in **System** is the only admin sign-in.
+- Any musician device admitted to the mixer can change any AUX mix the admin shows. This is intended and is now documented in `SECURITY.md`.
+
 ## 1.22.1 — 2026-11-25
 
 Product version: **1.22.1**. Node package version: **2.24.0**.
